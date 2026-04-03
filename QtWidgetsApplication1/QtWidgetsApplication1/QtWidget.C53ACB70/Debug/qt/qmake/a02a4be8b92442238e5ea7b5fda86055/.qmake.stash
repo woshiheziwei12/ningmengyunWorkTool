@@ -1,0 +1,26 @@
+QMAKE_CXX.INCDIRS = \
+    D:\\app\\visualStdio\\base\\VC\\Tools\\MSVC\\14.44.35207\\include \
+    D:\\app\\visualStdio\\base\\VC\\Tools\\MSVC\\14.44.35207\\atlmfc\\include \
+    D:\\app\\visualStdio\\base\\VC\\Auxiliary\\VS\\include \
+    D:\\app\\winsdk\\Include\\10.0.26100.0\\ucrt \
+    D:\\app\\visualStdio\\base\\VC\\Auxiliary\\VS\\UnitTest\\include \
+    D:\\app\\winsdk\\Include\\10.0.26100.0\\um \
+    D:\\app\\winsdk\\Include\\10.0.26100.0\\shared \
+    D:\\app\\winsdk\\Include\\10.0.26100.0\\winrt \
+    D:\\app\\winsdk\\Include\\10.0.26100.0\\cppwinrt \
+    "C:\\Program Files (x86)\\Windows Kits\\NETFXSDK\\4.8\\Include\\um"
+QMAKE_CXX.LIBDIRS = \
+    D:\\app\\visualStdio\\base\\VC\\Tools\\MSVC\\14.44.35207\\lib\\x86 \
+    D:\\app\\visualStdio\\base\\VC\\Tools\\MSVC\\14.44.35207\\atlmfc\\lib\\x86 \
+    D:\\app\\visualStdio\\base\\VC\\Auxiliary\\VS\\lib\\x86 \
+    D:\\app\\winsdk\\lib\\10.0.26100.0\\ucrt\\x86 \
+    D:\\app\\visualStdio\\base\\VC\\Auxiliary\\VS\\UnitTest\\lib \
+    D:\\app\\winsdk\\lib\\10.0.26100.0\\um\\x86 \
+    "C:\\Program Files (x86)\\Windows Kits\\NETFXSDK\\4.8\\lib\\um\\x86"
+QMAKE_CXX.QT_COMPILER_STDCXX = 199711L
+QMAKE_CXX.QMAKE_MSC_VER = 1944
+QMAKE_CXX.QMAKE_MSC_FULL_VER = 194435222
+QMAKE_CXX.COMPILER_MACROS = \
+    QT_COMPILER_STDCXX \
+    QMAKE_MSC_VER \
+    QMAKE_MSC_FULL_VER

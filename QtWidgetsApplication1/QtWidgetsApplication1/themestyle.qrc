@@ -1,0 +1,24 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Resource/Images/close.png</file>
+        <file>Resource/Images/close-hover.png</file>
+        <file>Resource/Images/minimize.png</file>
+        <file>Resource/Images/minimize-hover.png</file>
+        <file>Resource/Images/main_left_bgimg.png</file>
+        <file>Resource/Images/logo.png</file>
+        <file>Resource/Images/logo-reverse.png</file>
+        <file>Resource/Images/icon1.png</file>
+        <file>Resource/Images/icon2.png</file>
+        <file>Resource/Images/icon3.png</file>
+        <file>Resource/Images/phone-icon.png</file>
+        <file>Resource/Images/password-icon.png</file>
+        <file>Resource/Images/qrcode-icon.png</file>
+        <file>Resource/Images/currect.png</file>
+        <file>Resource/Images/checked.png</file>
+        <file>Resource/Images/unchecked.png</file>
+        <file>Resource/qss/mystyle.css</file>
+        <file>Resource/http/Dev/Account.json</file>
+        <file>Resource/http/Pro/Account.json</file>
+        <file>Resource/http/Dev2/Account.json</file>
+    </qresource>
+</RCC>

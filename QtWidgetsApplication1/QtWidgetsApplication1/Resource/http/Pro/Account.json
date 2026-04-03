@@ -1,0 +1,22 @@
+{
+  "authHost": "https://auth.ningmengyun.com",
+  "behaviorCodeAppId": "196951085",
+  "signInUrl": "https://auth.ningmengyun.com/v2/oauth/token",
+  "userInfoUrl": "https://auth.ningmengyun.com/v2/api/userInfo",
+  "registerVerifyCodeUrl": "https://auth.ningmengyun.com/v2/api/RegisterV2",
+  "verifyCodeSignInUrl": "https://auth.ningmengyun.com/v2/unionregister/register",
+  "wxQrTokenUrl": "https://api.ningmengyun.com/api/wxqrtoken.ashx",
+  "wxQrCodeUrl": "https://api.ningmengyun.com/api/qrcodeproxy.ashx",
+  "wxLoginScanedUrl": "https://api.ningmengyun.com/api/wxLoginScanedForClient.ashx",
+  "importerApiHost": "https://daozhangapi.ningmengyun.com",
+  "importerDownload": "http://download.ningmengyun.com/%E6%9F%A0%E6%AA%AC%E4%BA%91%E5%AF%BC%E8%B4%A6%E5%B7%A5%E5%85%B7.zip",
+  "aaSystemApiHost": "https://dzapi.ningmengyun.com/dz_api",
+  "proSystemApiHost": "https://e.ningmengyun.com",
+  "proImporterApiHost": "https://prodaozhangapi.ningmengyun.com",
+  "aaImporterApiHost": "https://aadaozhangapi.ningmengyun.com",
+  "aaProImporterApiHost": "https://aaprodaozhangapi.ningmengyun.com",
+  "jproApiHost": "https://jproapi.ningmengyun.com",
+  "loginAshxUrl": "https://api.ningmengyun.com/api/login.ashx",
+  "jproCallbackUrl": "https://jpro.ningmengyun.com",
+  "wbgateMenuUrl": "https://wbgate.ningmengyun.com/wb/redirect/menu?productType=acc"
+}

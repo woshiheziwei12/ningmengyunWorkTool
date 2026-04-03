@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MicroMsgLoginWidget</class>
+ <widget class="QWidget" name="MicroMsgLoginWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>270</width>
+    <height>270</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>270</width>
+    <height>270</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>270</width>
+    <height>270</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="QLabel" name="labelError">
+   <property name="geometry">
+    <rect>
+     <x>5</x>
+     <y>100</y>
+     <width>260</width>
+     <height>60</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>260</width>
+     <height>60</height>
+    </size>
+   </property>
+   <property name="maximumSize">
+    <size>
+     <width>260</width>
+     <height>60</height>
+    </size>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background:#CC000000;
+color:white;
+border-radius:4px;</string>
+   </property>
+   <property name="text">
+    <string>&#24494;&#20449;&#26410;&#32465;&#23450;&#65292;&#35831;&#29992;&#20854;&#20182;&#26041;&#24335;&#30331;&#24405;&#21734;~</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="labelErWeiMa">
+   <property name="geometry">
+    <rect>
+     <x>35</x>
+     <y>35</y>
+     <width>200</width>
+     <height>200</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>200</width>
+     <height>200</height>
+    </size>
+   </property>
+   <property name="maximumSize">
+    <size>
+     <width>200</width>
+     <height>200</height>
+    </size>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="scaledContents">
+    <bool>true</bool>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <zorder>labelErWeiMa</zorder>
+  <zorder>labelError</zorder>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

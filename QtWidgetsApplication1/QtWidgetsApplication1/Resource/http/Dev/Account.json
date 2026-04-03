@@ -1,0 +1,12 @@
+{
+  "authHost": "http://authtest.ningmengyun.com",
+  "behaviorCodeAppId": "192669532",
+  "signInUrl": "http://authtest.ningmengyun.com/v2/oauth/token",
+  "userInfoUrl": "http://authtest.ningmengyun.com/v2/api/userinfo",
+  "registerVerifyCodeUrl": "http://authtest.ningmengyun.com/v2/api/RegisterV2",
+  "verifyCodeSignInUrl": "http://authtest.ningmengyun.com/v2/unionregister/register",
+  "wxQrTokenUrl": "http://j2test.ningmengyun.com/api/wxqrtoken.ashx",
+  "wxQrCodeUrl": "http://j2test.ningmengyun.com/api/qrcodeproxy.ashx",
+  "wxLoginScanedUrl": "http://j2test.ningmengyun.com/api/wxLoginScanedForClient.ashx",
+  "importerApiHost": "http://accimportertest.ningmengyun.com"
+}

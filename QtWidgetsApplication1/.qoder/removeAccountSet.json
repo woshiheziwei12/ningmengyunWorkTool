@@ -1,0 +1,38 @@
+POST https://jproapi.ningmengyun.com/api/AccountSetOnlyAuth/DropAccountSetToRecycleBinV2?asId=200834788&serviceid=10949665&appasid=200834788I84l84 HTTP/1.1
+Host: jproapi.ningmengyun.com
+Connection: keep-alive
+Content-Length: 0
+sec-ch-ua-platform: "Windows"
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36
+Accept: application/json, text/plain, */*
+sec-ch-ua: "Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+appasid: 200834788I84l84
+sec-ch-ua-mobile: ?0
+Origin: https://jpro6.ningmengyun.com
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: https://jpro6.ningmengyun.com/
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: zh-CN,zh;q=0.9
+Cookie: cashClassificationSwitch=true; Hm_lvt_196de8e5bab8a5ba9312dcdbb05c2c33=1774919854,1774928800,1775025812,1775030521; HMACCOUNT=0171B433FB99DB42; channel=9000; channelRefer=; queryword=; channelType=1090; ASP.NET_SessionId=ilpu1vuraimas4rqzuirpcxb; auth=5419540; authname=%e4%bd%95%e5%ad%90%e5%a8%81; IsLogin=true; ningmengcookie=mmFdFOq-SI1rRZRbVZEgFITuKnTNkGV7jZ_anmHHaQqKLxPw9lYV80A38Xb4LKlZzCNruii5VkPfIdOcEOaZWT0LQdiJIz5mTjJVa5DEXvJG9oga4RiIEZWhlHAyDF6AnlZLKH-kvWx39TV5FOWawQZNXwoV9HIT6Yf_pxrog_iNEhOt3XsuVfsniqju4kgKbIF7qyBOy7drtPVNQe5wObbgeUxLLlojXnNUaMklDmQTaLXggO51uPOJRoIxdoGxKsA-i8-8q6upVNGqCE9mo-Fq0tqBCjBbTG2v1O0kCtk95FOFWCvcbpL42OUNmoMCSycu0pSsopubguy-Irg-8REqdnIFql6ze3aetFNXOewpUTD4NwrRIL2AWxiKkGCmrjORw4kuKGVAQBJUUIukmqsTPVc; bsr=2560*1440; service-id=10949665; Hm_lpvt_196de8e5bab8a5ba9312dcdbb05c2c33=1775030537
+
+
+
+HTTP/1.1 200 OK
+Date: Wed, 01 Apr 2026 08:09:05 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 48
+Connection: keep-alive
+Cache-Control: no-cache
+Pragma: no-cache
+Expires: -1
+Access-Control-Allow-Origin: https://jpro6.ningmengyun.com
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: Content-Disposition
+X-AspNet-Version: 4.0.30319
+X-Powered-By: ASP.NET
+
+{"state":1000,"subState":0,"data":true,"msg":""}
+
