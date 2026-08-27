@@ -20,7 +20,8 @@ struct BackupAccountSetInfo
     QString asName;
     QString appAsId;
     QString asStartDate;
-    QString asCurrentPeriod;
+    int serviceId;
+    QString productTypeDescription;
 };
 
 class BackupAccountSetWidget : public QWidget
@@ -36,7 +37,6 @@ signals:
     void backToMain();
 
 private slots:
-    void onFetchListFinished(QNetworkReply *reply);
     void onBackupBtnClicked();
     void onSelectAllChanged(int state);
     void onBackClicked();
@@ -61,7 +61,16 @@ private:
     void onDownloadRedirectFinished(QNetworkReply *reply, int taskIndex);
     void onDownloadFileFinished(QNetworkReply *reply, int taskIndex);
 
+    void refreshAppAsId();
+    void onRefreshAppAsIdFinished(QNetworkReply *reply);
+    void fetchPlanServiceParams();
+    void onFetchPlanFinished(QNetworkReply *reply);
+    void doLoadAccountSetList();
+    void onFetchListFinished(QNetworkReply *reply, int planIndex);
+    void populateTable();
+
     QString buildCookieString() const;
+    QString buildCookieStringForPlan(int serviceId) const;
     QString apiHost() const;
     QString savePath() const;
     void loadSavePath();
@@ -87,12 +96,23 @@ private:
 
     QList<BackupAccountSetInfo> m_accountSetList;
 
+    // 匹配的plan列表（用于遍历查询账套）
+    struct MatchedPlan
+    {
+        int serviceId;
+        QString appAsId;
+        QString productTypeDescription;
+    };
+    QList<MatchedPlan> m_matchedPlans;
+    int m_nPlanFetchCompleted;
+
     // 备份任务
     struct BackupTask
     {
         int asId;
         QString asName;
         QString appAsId;
+        int serviceId;
         QString fileName;    // 备份生成的文件名
         int progress;        // 备份进度 0~100
         bool finished;       // 该任务是否已完成（成功或失败）

@@ -1,2 +1,0 @@
-D:\learnspace\worktool\QtWidgetsApplication1\QtWidgetsApplication1\Debug\QtWidgetsApplication1.exe
-D:\learnspace\ningmengyunWorkTool\QtWidgetsApplication1\QtWidgetsApplication1\Debug\QtWidgetsApplication1.exe

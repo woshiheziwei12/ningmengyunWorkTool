@@ -21,15 +21,19 @@ public:
 private slots:
     void on_btnForgetPwd_clicked();
     void on_btnPwdLogin_clicked();
-    void onLoginAshxFinished(QNetworkReply *reply);
+    void onLoginFinished(QNetworkReply *reply);
+    void onJwtFinished(QNetworkReply *reply);
     void onFetchServiceParamsFinished(QNetworkReply *reply);
+    void onFetchPlanFinished(QNetworkReply *reply);
 
 signals:
     void login_success();
     void tologin();
 
 private:
+    void fetchJwtToken();
     void fetchServiceParams();
+    void fetchPlanServiceParams();
     void saveCredentials();
 
     Ui::PwdLoginWidget *ui;

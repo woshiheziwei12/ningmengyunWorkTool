@@ -12,8 +12,8 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QRegularExpressionValidator>
-#include <QHttpMultiPart>
 #include <QNetworkCookie>
 
 PwdLoginWidget::PwdLoginWidget(GlobalData *globalData, QWidget *parent) :
@@ -29,7 +29,8 @@ PwdLoginWidget::PwdLoginWidget(GlobalData *globalData, QWidget *parent) :
     QValidator *validator = new QRegularExpressionValidator(regx, this);
     ui->editUserName->setValidator(validator);
 
-    forgetPwdUrl = QLatin1String("https://www.ningmengyun.com/?rp=fpd");
+    lemoncofighelper configHelper;
+    forgetPwdUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kForgotPasswordUrlKey);
 
     connect(this, &PwdLoginWidget::tologin, this, &PwdLoginWidget::on_btnPwdLogin_clicked);
 
@@ -85,7 +86,7 @@ void PwdLoginWidget::on_btnPwdLogin_clicked()
     }
 
     lemoncofighelper configHelper;
-    QString strLoginUrl = configHelper.GetAccountUrlByKey("loginAshxUrl");
+    QString strLoginUrl = configHelper.GetAccountUrlByKey("signInUrl");
     if (strLoginUrl.isEmpty())
     {
         ui->labelPwdError->setText(QStringLiteral("请求地址不能为空"));
@@ -93,54 +94,35 @@ void PwdLoginWidget::on_btnPwdLogin_clicked()
         return;
     }
 
-    // 构造 multipart/form-data 请求体
-    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-
-    QHttpPart userNamePart;
-    userNamePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QVariant("form-data; name=\"userName\""));
-    userNamePart.setBody(strUserName.toUtf8());
-    multiPart->append(userNamePart);
-
-    QHttpPart passWordPart;
-    passWordPart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QVariant("form-data; name=\"passWord\""));
-    passWordPart.setBody(strPwd.toUtf8());
-    multiPart->append(passWordPart);
-
-    QHttpPart loginSourcePart;
-    loginSourcePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                              QVariant("form-data; name=\"loginSource\""));
-    loginSourcePart.setBody("1010");
-    multiPart->append(loginSourcePart);
-
-    QHttpPart wxUserNamePart;
-    wxUserNamePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                             QVariant("form-data; name=\"wxUserName\""));
-    wxUserNamePart.setBody("gh_1e17d92980b8");
-    multiPart->append(wxUserNamePart);
-
-    QHttpPart rfromPart;
-    rfromPart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                        QVariant("form-data; name=\"rfrom\""));
-    rfromPart.setBody("1010");
-    multiPart->append(rfromPart);
+    QMap<QString, QString> reqParams;
+    reqParams["client_id"] = "123456";
+    reqParams["client_secret"] = "abcdef";
+    reqParams["grant_type"] = "password";
+    reqParams["username"] = strUserName;
+    reqParams["password"] = strPwd;
 
     QNetworkRequest request;
     request.setUrl(QUrl(strLoginUrl.trimmed()));
     CHttpRequestHelper::configureSsl(request);
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36");
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    request.setHeader(QNetworkRequest::UserAgentHeader, "lemonClient");
 
-    QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, multiPart);
-    multiPart->setParent(reply);
+    QString strPostData;
+    for (auto it = reqParams.constBegin(); it != reqParams.constEnd(); ++it)
+    {
+        if (!strPostData.isEmpty())
+            strPostData += '&';
+        strPostData += it.key() + '=' + QUrl::toPercentEncoding(it.value());
+    }
+
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, strPostData.toUtf8());
     CHttpRequestHelper::handleSslErrors(reply);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        onLoginAshxFinished(reply);
+        onLoginFinished(reply);
     });
 }
 
-void PwdLoginWidget::onLoginAshxFinished(QNetworkReply *reply)
+void PwdLoginWidget::onLoginFinished(QNetworkReply *reply)
 {
     int reqCode = 0;
     QVariant variant = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
@@ -155,54 +137,135 @@ void PwdLoginWidget::onLoginAshxFinished(QNetworkReply *reply)
         return;
     }
 
-    // 解析响应体（JSONP 格式，外面包了一层括号）
     QByteArray body = reply->readAll();
-    // 去除 JSONP 包裹的 ( )
-    QString bodyStr = QString::fromUtf8(body).trimmed();
-    if (bodyStr.startsWith('(') && bodyStr.endsWith(')'))
-        bodyStr = bodyStr.mid(1, bodyStr.length() - 2);
+    reply->deleteLater();
 
     QJsonParseError jsonError;
-    QJsonDocument document = QJsonDocument::fromJson(bodyStr.toUtf8(), &jsonError);
+    QJsonDocument document = QJsonDocument::fromJson(body, &jsonError);
     if (jsonError.error != QJsonParseError::NoError || !document.isObject())
     {
-        reply->deleteLater();
         ui->labelPwdError->setText(QStringLiteral("登录失败，响应格式错误"));
         ui->labelPwdError->setVisible(true);
         return;
     }
 
     QJsonObject obj = document.object();
-    if (obj["result"].toInt() != 1 || !obj["success"].toBool())
-    {
-        reply->deleteLater();
-        ui->labelPwdError->setText(QStringLiteral("登录失败，请检查用户名密码"));
-        ui->labelPwdError->setVisible(true);
-        return;
-    }
-
-    // 从 Set-Cookie 中提取 ningmengcookie（使用 QNetworkCookie API）
-    QVariant cookieVar = reply->header(QNetworkRequest::SetCookieHeader);
-    QList<QNetworkCookie> cookies = cookieVar.value<QList<QNetworkCookie>>();
-    for (const QNetworkCookie &cookie : cookies)
-    {
-        if (cookie.name() == "ningmengcookie")
-            m_pGlobalData->m_strNingMengCookie = QString::fromUtf8(cookie.value());
-    }
-
-    reply->deleteLater();
-
-    if (m_pGlobalData->m_strNingMengCookie.isEmpty())
+    QString accessToken = obj["access_token"].toString();
+    if (accessToken.isEmpty())
     {
         ui->labelPwdError->setText(QStringLiteral("登录失败，未获取到认证信息"));
         ui->labelPwdError->setVisible(true);
         return;
     }
 
-    // 同步设置 access_token，保持兼容
-    m_pGlobalData->m_userToken.SetAccessToken(m_pGlobalData->m_strNingMengCookie);
+    // access_token is the ningmengcookie
+    m_pGlobalData->m_strNingMengCookie = accessToken;
 
-    // 动态获取 serviceId 和 appAsId
+    if (obj.contains("refresh_token"))
+        m_pGlobalData->m_userToken.SetRefreshToken(obj["refresh_token"].toString());
+    if (obj.contains("expires_in"))
+        m_pGlobalData->m_userToken.SetExpirenIn(obj["expires_in"].toInt());
+
+    // get JWT token for Bearer auth
+    fetchJwtToken();
+}
+
+void PwdLoginWidget::fetchJwtToken()
+{
+    lemoncofighelper configHelper;
+    QString authHost = configHelper.GetAccountUrlByKey("authHost");
+    if (authHost.isEmpty())
+    {
+        ui->labelPwdError->setText(QStringLiteral("authHost 配置为空"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QString jwtUrl = authHost + "/v2/api/jwt";
+    QNetworkRequest request;
+    request.setUrl(QUrl(jwtUrl));
+    CHttpRequestHelper::configureSsl(request);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setHeader(QNetworkRequest::UserAgentHeader, "lemonClient");
+
+    QString cookie = "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
+    request.setRawHeader("Cookie", cookie.toUtf8());
+
+    QByteArray postData = "{}";
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, postData);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onJwtFinished(reply);
+    });
+}
+
+void PwdLoginWidget::onJwtFinished(QNetworkReply *reply)
+{
+    int reqCode = 0;
+    QVariant variant = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    if (variant.isValid())
+        reqCode = variant.toInt();
+
+    if (reqCode != 200)
+    {
+        reply->deleteLater();
+        ui->labelPwdError->setText(QStringLiteral("获取JWT令牌失败"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QByteArray body = reply->readAll();
+    reply->deleteLater();
+
+    QJsonParseError jsonError;
+    QJsonDocument document = QJsonDocument::fromJson(body, &jsonError);
+    if (jsonError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        ui->labelPwdError->setText(QStringLiteral("JWT响应格式错误"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QJsonObject obj = document.object();
+    if (!obj["success"].toBool())
+    {
+        ui->labelPwdError->setText(QStringLiteral("获取JWT令牌失败"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QString jwtToken = obj["token"].toString();
+    if (jwtToken.isEmpty())
+    {
+        ui->labelPwdError->setText(QStringLiteral("JWT令牌为空"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    // JWT token for Bearer authorization
+    m_pGlobalData->m_userToken.SetAccessToken(jwtToken);
+
+    // 从JWT payload中解析用户ID（sub字段）
+    QStringList jwtParts = jwtToken.split('.');
+    if (jwtParts.size() >= 2)
+    {
+        QByteArray payload = QByteArray::fromBase64(jwtParts[1].toUtf8(), QByteArray::Base64UrlEncoding);
+        QJsonDocument payloadDoc = QJsonDocument::fromJson(payload);
+        if (payloadDoc.isObject())
+        {
+            QJsonObject payloadObj = payloadDoc.object();
+            QString sub = payloadObj["sub"].toString();
+            if (!sub.isEmpty())
+                m_pGlobalData->m_nUserId = sub.toInt();
+
+            QString authName = payloadObj.value("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name").toString();
+            if (authName.isEmpty())
+                authName = payloadObj.value("name").toString();
+            if (!authName.isEmpty())
+                m_pGlobalData->m_strAuthName = authName;
+        }
+    }
+
     fetchServiceParams();
 }
 
@@ -220,12 +283,11 @@ void PwdLoginWidget::fetchServiceParams()
     QNetworkRequest request;
     request.setUrl(QUrl(wbgateUrl));
     CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
 
-    // 不自动跟随重定向，手动解析 302 响应
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
 
-    // 携带 cookie
     QString cookie = "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
     request.setRawHeader("Cookie", cookie.toUtf8());
 
@@ -243,9 +305,11 @@ void PwdLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
     if (variant.isValid())
         reqCode = variant.toInt();
 
+    m_pGlobalData->m_nServiceId = 0;
+    m_pGlobalData->m_strAppAsId.clear();
+
     if (reqCode == 302 || reqCode == 301)
     {
-        // 从 Location 头解析 serviceID 和 appasid
         QString location = QString::fromUtf8(reply->rawHeader("Location"));
         QUrl redirectUrl(location);
         QUrlQuery query(redirectUrl);
@@ -258,7 +322,6 @@ void PwdLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
         if (!appAsId.isEmpty())
             m_pGlobalData->m_strAppAsId = appAsId;
 
-        // 也从 Set-Cookie 中提取 service-id（作为备用）
         QVariant ckVar = reply->header(QNetworkRequest::SetCookieHeader);
         QList<QNetworkCookie> ckList = ckVar.value<QList<QNetworkCookie>>();
         for (const QNetworkCookie &ck : ckList)
@@ -267,13 +330,14 @@ void PwdLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
                 m_pGlobalData->m_nServiceId = QString::fromUtf8(ck.value()).toInt();
         }
 
+        bool hasServiceParams = m_pGlobalData->m_nServiceId != 0 && !m_pGlobalData->m_strAppAsId.isEmpty();
         reply->deleteLater();
 
-        if (m_pGlobalData->m_nServiceId == 0 || m_pGlobalData->m_strAppAsId.isEmpty())
+        if (!hasServiceParams)
         {
-            qDebug() << QStringLiteral("警告：serviceId 或 appAsId 未获取到");
-            qDebug() << "serviceId:" << m_pGlobalData->m_nServiceId
-                     << "appAsId:" << m_pGlobalData->m_strAppAsId;
+            qDebug() << QStringLiteral("wbgate未返回serviceId/appAsId，尝试从工作台套餐列表获取");
+            fetchPlanServiceParams();
+            return;
         }
 
         m_pGlobalData->m_bLogin = true;
@@ -283,10 +347,101 @@ void PwdLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
     else
     {
         reply->deleteLater();
-        qDebug() << QStringLiteral("获取服务参数失败，HTTP状态码:") << reqCode;
-        ui->labelPwdError->setText(QStringLiteral("获取服务信息失败"));
-        ui->labelPwdError->setVisible(true);
+        qDebug() << QStringLiteral("wbgate未返回302，尝试从工作台套餐列表获取, HTTP:") << reqCode;
+        fetchPlanServiceParams();
     }
+}
+
+void PwdLoginWidget::fetchPlanServiceParams()
+{
+    lemoncofighelper configHelper;
+    QString planUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kWbgatePlanUrlKey);
+    if (planUrl.isEmpty())
+    {
+        ui->labelPwdError->setText(QStringLiteral("wbgatePlanUrl 配置为空"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QNetworkRequest request;
+    request.setUrl(QUrl(planUrl));
+    CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
+    // JWT for Bearer auth, ningmengcookie for Cookie
+    request.setRawHeader("Authorization", ("Bearer " + m_pGlobalData->m_userToken.m_strAccessToken).toUtf8());
+    request.setRawHeader("Cookie", ("ningmengcookie=" + m_pGlobalData->m_strNingMengCookie).toUtf8());
+
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onFetchPlanFinished(reply);
+    });
+}
+
+void PwdLoginWidget::onFetchPlanFinished(QNetworkReply *reply)
+{
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QByteArray body = reply->readAll();
+    reply->deleteLater();
+
+    QJsonParseError jsonError;
+    QJsonDocument doc = QJsonDocument::fromJson(body, &jsonError);
+    if (statusCode != 200 || jsonError.error != QJsonParseError::NoError || !doc.isObject())
+    {
+        ui->labelPwdError->setText(QStringLiteral("获取工作台账套信息失败"));
+        ui->labelPwdError->setVisible(true);
+        return;
+    }
+
+    QJsonArray plans = doc.object()["data"].toObject()["data"].toArray();
+
+    // 优先选择 administrator 匹配当前登录用户 且 产品类型为柠檬云财务 的 plan
+    int fallbackServiceId = 0;
+    QString fallbackAppAsId;
+
+    for (const QJsonValue &value : plans)
+    {
+        QJsonObject plan = value.toObject();
+        if (plan["productType"].toString() != "acc")
+            continue;
+
+        int serviceId = plan["id"].toInt();
+        QString appAsId = plan["lastAccountSet"].toObject()["appAsid"].toString();
+        if (serviceId == 0 || appAsId.isEmpty())
+            continue;
+
+        int administrator = plan["administrator"].toInt();
+        if (m_pGlobalData->m_nUserId != 0 && administrator == m_pGlobalData->m_nUserId)
+        {
+            m_pGlobalData->m_nServiceId = serviceId;
+            m_pGlobalData->m_strAppAsId = appAsId;
+            m_pGlobalData->m_bLogin = true;
+            saveCredentials();
+            emit login_success();
+            return;
+        }
+
+        // 记录第一个有效的作为 fallback
+        if (fallbackServiceId == 0)
+        {
+            fallbackServiceId = serviceId;
+            fallbackAppAsId = appAsId;
+        }
+    }
+
+    // 没有找到 administrator 匹配的，使用 fallback
+    if (fallbackServiceId != 0 && !fallbackAppAsId.isEmpty())
+    {
+        m_pGlobalData->m_nServiceId = fallbackServiceId;
+        m_pGlobalData->m_strAppAsId = fallbackAppAsId;
+        m_pGlobalData->m_bLogin = true;
+        saveCredentials();
+        emit login_success();
+        return;
+    }
+
+    ui->labelPwdError->setText(QStringLiteral("未获取到账套服务编号，请确认账号是否有柠檬云财务账套"));
+    ui->labelPwdError->setVisible(true);
 }
 
 void PwdLoginWidget::saveCredentials()

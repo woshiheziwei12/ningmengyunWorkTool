@@ -10,6 +10,7 @@ class QTableWidget;
 class QLabel;
 class QPushButton;
 class QNetworkReply;
+class QUrlQuery;
 
 struct AccountSetInfo
 {
@@ -17,7 +18,8 @@ struct AccountSetInfo
     QString asName;
     QString appAsId;
     QString asStartDate;
-    QString asCurrentPeriod;
+    int serviceId;
+    QString productTypeDescription;
 };
 
 class DeleteAccountSetWidget : public QWidget
@@ -33,7 +35,6 @@ signals:
     void backToMain();
 
 private slots:
-    void onFetchListFinished(QNetworkReply *reply);
     void onDeleteBtnClicked();
     void onSelectAllChanged(int state);
     void onBackClicked();
@@ -51,7 +52,16 @@ private:
     void deleteNextAccountSet();
     void onDeleteOneFinished(QNetworkReply *reply, int asId, const QString &asName);
 
+    void refreshAppAsId();
+    void onRefreshAppAsIdFinished(QNetworkReply *reply);
+    void fetchPlanServiceParams();
+    void onFetchPlanFinished(QNetworkReply *reply);
+    void doLoadAccountSetList();
+    void onFetchListFinished(QNetworkReply *reply, int planIndex);
+    void populateTable();
+
     QString buildCookieString() const;
+    QString buildCookieStringForPlan(int serviceId) const;
     QString apiHost() const;
 
     GlobalData *m_pGlobalData;
@@ -72,12 +82,23 @@ private:
 
     QList<AccountSetInfo> m_accountSetList;
 
+    // 匹配的plan列表
+    struct MatchedPlan
+    {
+        int serviceId;
+        QString appAsId;
+        QString productTypeDescription;
+    };
+    QList<MatchedPlan> m_matchedPlans;
+    int m_nPlanFetchCompleted;
+
     // 删除进度追踪
     struct DeleteTask
     {
         int asId;
         QString asName;
         QString appAsId;
+        int serviceId;
     };
     QList<DeleteTask> m_deleteTasks;
     int m_nCurrentDeleteIndex;

@@ -41,8 +41,12 @@ signals:
 private:
     void sendSmsRequest();
     void onReplyFinished(QNetworkReply *reply, SmsLoginReqEnum reqType);
+    void fetchJwtToken();
+    void onJwtFinished(QNetworkReply *reply);
     void fetchServiceParams();
     void onFetchServiceParamsFinished(QNetworkReply *reply);
+    void fetchPlanServiceParams();
+    void onFetchPlanFinished(QNetworkReply *reply);
 
     Ui::SmsLoginWidget *ui;
     GlobalData *m_pGlobalData;

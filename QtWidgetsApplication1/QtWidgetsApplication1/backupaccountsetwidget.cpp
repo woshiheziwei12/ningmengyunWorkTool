@@ -24,6 +24,7 @@
 #include <QUrlQuery>
 #include <QLineEdit>
 #include <QSettings>
+#include <QNetworkCookie>
 
 BackupAccountSetWidget::BackupAccountSetWidget(GlobalData *globalData, QWidget *parent)
     : QWidget(parent),
@@ -68,8 +69,8 @@ void BackupAccountSetWidget::setupListPage()
 {
     QWidget *page = new QWidget(this);
     QVBoxLayout *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(20, 15, 20, 15);
-    layout->setSpacing(10);
+    layout->setContentsMargins(24, 20, 24, 20);
+    layout->setSpacing(12);
 
     // 标题行
     QHBoxLayout *titleLayout = new QHBoxLayout();
@@ -89,23 +90,28 @@ void BackupAccountSetWidget::setupListPage()
     // 账套表格
     m_pAccountTable = new QTableWidget(page);
     m_pAccountTable->setObjectName("accountTable");
-    m_pAccountTable->setColumnCount(4);
+    m_pAccountTable->setColumnCount(5);
     m_pAccountTable->setHorizontalHeaderLabels({
         QStringLiteral("\u9009\u62e9"),
         QStringLiteral("\u8d26\u5957\u540d\u79f0"),
         QStringLiteral("\u542f\u7528\u65e5\u671f"),
-        QStringLiteral("\u5f53\u524d\u671f\u95f4")
+        QStringLiteral("\u4ea7\u54c1\u7c7b\u578b"),
+        QStringLiteral("\u670d\u52a1\u7f16\u53f7")
     });
     m_pAccountTable->horizontalHeader()->setStretchLastSection(true);
     m_pAccountTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_pAccountTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_pAccountTable->setColumnWidth(0, 50);
-    m_pAccountTable->setColumnWidth(2, 120);
-    m_pAccountTable->setColumnWidth(3, 120);
+    m_pAccountTable->setColumnWidth(2, 100);
+    m_pAccountTable->setColumnWidth(3, 100);
+    m_pAccountTable->setColumnWidth(4, 90);
     m_pAccountTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_pAccountTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_pAccountTable->verticalHeader()->setVisible(false);
+    m_pAccountTable->verticalHeader()->setDefaultSectionSize(38);
+    m_pAccountTable->horizontalHeader()->setHighlightSections(false);
     m_pAccountTable->setAlternatingRowColors(true);
+    m_pAccountTable->setShowGrid(false);
     layout->addWidget(m_pAccountTable);
 
     // 保存路径选择行
@@ -156,8 +162,8 @@ void BackupAccountSetWidget::setupResultPage()
 {
     QWidget *page = new QWidget(this);
     QVBoxLayout *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(20, 15, 20, 15);
-    layout->setSpacing(10);
+    layout->setContentsMargins(24, 20, 24, 20);
+    layout->setSpacing(12);
 
     QLabel *titleLabel = new QLabel(QStringLiteral("\u5907\u4efd\u4e0b\u8f7d\u7ed3\u679c"), page);
     titleLabel->setObjectName("labelPageTitle");
@@ -177,7 +183,10 @@ void BackupAccountSetWidget::setupResultPage()
     m_pResultTable->setColumnWidth(1, 80);
     m_pResultTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_pResultTable->verticalHeader()->setVisible(false);
+    m_pResultTable->verticalHeader()->setDefaultSectionSize(38);
+    m_pResultTable->horizontalHeader()->setHighlightSections(false);
     m_pResultTable->setAlternatingRowColors(true);
+    m_pResultTable->setShowGrid(false);
     layout->addWidget(m_pResultTable);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
@@ -211,16 +220,12 @@ void BackupAccountSetWidget::showResult()
 
 QString BackupAccountSetWidget::apiHost() const
 {
-    lemoncofighelper configHelper;
-    return configHelper.GetAccountUrlByKey("jproApiHost");
+    return lemoncofighelper::JproApiHost();
 }
 
 QString BackupAccountSetWidget::buildCookieString() const
 {
-    QString cookie;
-    cookie += "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
-    cookie += "; service-id=" + QString::number(m_pGlobalData->m_nServiceId);
-    return cookie;
+    return buildCookieStringForPlan(m_pGlobalData->m_nServiceId);
 }
 
 // ======================== 加载账套列表 ========================
@@ -228,9 +233,168 @@ QString BackupAccountSetWidget::buildCookieString() const
 void BackupAccountSetWidget::loadAccountSetList()
 {
     showLoading();
-    m_pLoadingLabel->setText(QStringLiteral("\u6b63\u5728\u52a0\u8f7d\u8d26\u5957\u5217\u8868..."));
+    m_pLoadingLabel->setText(QStringLiteral("\u6b63\u5728\u5237\u65b0\u8d26\u5957\u4fe1\u606f..."));
     m_accountSetList.clear();
     m_pAccountTable->setRowCount(0);
+
+    // 先刷新 appasid，再加载账套列表
+    refreshAppAsId();
+}
+
+void BackupAccountSetWidget::refreshAppAsId()
+{
+    lemoncofighelper configHelper;
+    QString wbgateUrl = configHelper.GetAccountUrlByKey("wbgateMenuUrl");
+    if (wbgateUrl.isEmpty())
+    {
+        m_pLoadingLabel->setText(QStringLiteral("\u914d\u7f6e\u9519\u8bef\uff1awbgateMenuUrl \u672a\u914d\u7f6e"));
+        return;
+    }
+
+    QNetworkRequest request;
+    request.setUrl(QUrl(wbgateUrl));
+    CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);
+    QString cookie = "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
+    request.setRawHeader("Cookie", cookie.toUtf8());
+
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onRefreshAppAsIdFinished(reply);
+    });
+}
+
+void BackupAccountSetWidget::onRefreshAppAsIdFinished(QNetworkReply *reply)
+{
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    bool hasServiceParams = false;
+
+    m_pGlobalData->m_nServiceId = 0;
+    m_pGlobalData->m_strAppAsId.clear();
+
+    if (statusCode == 302 || statusCode == 301)
+    {
+        QString location = QString::fromUtf8(reply->rawHeader("Location"));
+        QUrl redirectUrl(location);
+        QUrlQuery query(redirectUrl);
+
+        QString serviceId = query.queryItemValue("serviceID");
+        QString appAsId = query.queryItemValue("appasid");
+
+        if (!serviceId.isEmpty())
+            m_pGlobalData->m_nServiceId = serviceId.toInt();
+        if (!appAsId.isEmpty())
+            m_pGlobalData->m_strAppAsId = appAsId;
+
+        qDebug() << QStringLiteral("\u5237\u65b0appasid\u6210\u529f:") << m_pGlobalData->m_strAppAsId
+                 << "serviceId:" << m_pGlobalData->m_nServiceId;
+        hasServiceParams = m_pGlobalData->m_nServiceId != 0 && !m_pGlobalData->m_strAppAsId.isEmpty();
+    }
+    else
+    {
+        qDebug() << QStringLiteral("\u5237\u65b0appasid\u672a\u83b7\u53d6\u5230\u91cd\u5b9a\u5411\uff0cHTTP\u72b6\u6001\u7801:") << statusCode;
+    }
+
+    reply->deleteLater();
+
+    // 始终通过plan列表获取所有匹配的plan
+    fetchPlanServiceParams();
+}
+
+void BackupAccountSetWidget::fetchPlanServiceParams()
+{
+    lemoncofighelper configHelper;
+    QString planUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kWbgatePlanUrlKey);
+    if (planUrl.isEmpty())
+    {
+        m_pLoadingLabel->setText(QStringLiteral("配置错误：wbgatePlanUrl 未配置"));
+        return;
+    }
+
+    QNetworkRequest request;
+    request.setUrl(QUrl(planUrl));
+    CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
+    request.setRawHeader("Authorization", ("Bearer " + m_pGlobalData->m_userToken.m_strAccessToken).toUtf8());
+    request.setRawHeader("Cookie", ("ningmengcookie=" + m_pGlobalData->m_strNingMengCookie).toUtf8());
+
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onFetchPlanFinished(reply);
+    });
+}
+
+void BackupAccountSetWidget::onFetchPlanFinished(QNetworkReply *reply)
+{
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QByteArray data = reply->readAll();
+    reply->deleteLater();
+
+    QJsonParseError jsonErr;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &jsonErr);
+    if (statusCode != 200 || jsonErr.error != QJsonParseError::NoError || !doc.isObject())
+    {
+        m_pLoadingLabel->setText(QStringLiteral("\u83b7\u53d6\u5de5\u4f5c\u53f0\u8d26\u5957\u4fe1\u606f\u5931\u8d25"));
+        return;
+    }
+
+    QJsonArray plans = doc.object()["data"].toObject()["data"].toArray();
+    QList<MatchedPlan> preferredPlans;
+    QList<MatchedPlan> fallbackPlans;
+    m_matchedPlans.clear();
+
+    for (const QJsonValue &value : plans)
+    {
+        QJsonObject plan = value.toObject();
+        if (plan["productType"].toString() != "acc")
+            continue;
+        if ((plan.contains("isValid") && !plan["isValid"].toBool())
+            || plan["expired"].toBool()
+            || plan["Closed"].toBool())
+            continue;
+
+        int serviceId = plan["id"].toInt();
+        QString appAsId = plan["lastAccountSet"].toObject()["appAsid"].toString();
+        if (serviceId == 0 || appAsId.isEmpty())
+            continue;
+
+        int administrator = plan["administrator"].toInt();
+
+        MatchedPlan mp;
+        mp.serviceId = serviceId;
+        mp.appAsId = appAsId;
+        mp.productTypeDescription = plan["productTypeDescription"].toString();
+
+        if (m_pGlobalData->m_nUserId != 0
+            && administrator != 0
+            && administrator != m_pGlobalData->m_nUserId)
+            fallbackPlans.append(mp);
+        else
+            preferredPlans.append(mp);
+    }
+
+    m_matchedPlans = preferredPlans.isEmpty() ? fallbackPlans : preferredPlans;
+
+    if (m_matchedPlans.isEmpty())
+    {
+        m_pLoadingLabel->setText(QStringLiteral("\u672a\u83b7\u53d6\u5230\u8d26\u5957\u670d\u52a1\u7f16\u53f7\uff0c\u8bf7\u786e\u8ba4\u8d26\u53f7\u662f\u5426\u6709\u67e0\u6aac\u4e91\u8d22\u52a1\u8d26\u5957"));
+        return;
+    }
+
+    // 使用第一个匹配plan设置全局参数
+    m_pGlobalData->m_nServiceId = m_matchedPlans[0].serviceId;
+    m_pGlobalData->m_strAppAsId = m_matchedPlans[0].appAsId;
+
+    doLoadAccountSetList();
+}
+
+void BackupAccountSetWidget::doLoadAccountSetList()
+{
+    m_pLoadingLabel->setText(QStringLiteral("\u6b63\u5728\u52a0\u8f7d\u8d26\u5957\u5217\u8868..."));
 
     QString host = apiHost();
     if (host.isEmpty())
@@ -239,71 +403,86 @@ void BackupAccountSetWidget::loadAccountSetList()
         return;
     }
 
-    QString url = host + "/api/AccountSet/FullListV2"
-                  "?searchText="
-                  "&serviceId=" + QString::number(m_pGlobalData->m_nServiceId) +
-                  "&appasid=" + m_pGlobalData->m_strAppAsId;
+    m_nPlanFetchCompleted = 0;
 
-    QNetworkRequest request;
-    request.setUrl(QUrl(url));
-    CHttpRequestHelper::configureSsl(request);
-    CHttpRequestHelper::setJproApiHeaders(request);
-    request.setRawHeader("appasid", m_pGlobalData->m_strAppAsId.toUtf8());
-    request.setRawHeader("Cookie", buildCookieString().toUtf8());
+    for (int i = 0; i < m_matchedPlans.size(); ++i)
+    {
+        const MatchedPlan &mp = m_matchedPlans[i];
 
-    QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
-    CHttpRequestHelper::handleSslErrors(reply);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        onFetchListFinished(reply);
-    });
+        QString url = host + "/api/AccountSetOnlyAuth/TopInfoV2"
+                      "?serviceId=" + QString::number(mp.serviceId) +
+                      "&appasid=" + mp.appAsId;
+
+        QNetworkRequest request;
+        request.setUrl(QUrl(url));
+        CHttpRequestHelper::configureSsl(request);
+        CHttpRequestHelper::setJproApiHeaders(request);
+        request.setRawHeader("appasid", mp.appAsId.toUtf8());
+        request.setRawHeader("Cookie", buildCookieStringForPlan(mp.serviceId).toUtf8());
+
+        QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
+        CHttpRequestHelper::handleSslErrors(reply);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, i]() {
+            onFetchListFinished(reply, i);
+        });
+    }
 }
 
-void BackupAccountSetWidget::onFetchListFinished(QNetworkReply *reply)
+void BackupAccountSetWidget::onFetchListFinished(QNetworkReply *reply, int planIndex)
 {
     int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
-    if (reply->error() != QNetworkReply::NoError || statusCode != 200)
+    if (reply->error() == QNetworkReply::NoError && statusCode == 200)
     {
-        QString errMsg = reply->errorString();
-        qDebug() << QStringLiteral("\u83b7\u53d6\u8d26\u5957\u5217\u8868\u5931\u8d25:") << errMsg << "statusCode:" << statusCode;
-        m_pLoadingLabel->setText(QStringLiteral("\u52a0\u8f7d\u5931\u8d25\uff1a") + errMsg);
-        reply->deleteLater();
-        return;
+        QByteArray data = reply->readAll();
+        QJsonParseError jsonErr;
+        QJsonDocument doc = QJsonDocument::fromJson(data, &jsonErr);
+
+        if (jsonErr.error == QJsonParseError::NoError && doc.isObject())
+        {
+            QJsonObject root = doc.object();
+            if (root["state"].toInt() == 1000)
+            {
+                const MatchedPlan &mp = m_matchedPlans[planIndex];
+                QJsonArray arr = root["data"].toObject()["accountList"].toArray();
+                for (int i = 0; i < arr.size(); ++i)
+                {
+                    QJsonObject obj = arr[i].toObject();
+                    BackupAccountSetInfo info;
+                    info.asId = obj["asid"].toInt();
+                    info.asName = obj["asname"].toString();
+                    info.appAsId = obj["appAsId"].toString();
+                    info.asStartDate = QString::number(obj["asStartYear"].toInt()) + "-"
+                                     + QString::number(obj["asStartMonth"].toInt()).rightJustified(2, '0');
+                    info.serviceId = mp.serviceId;
+                    info.productTypeDescription = mp.productTypeDescription;
+                    m_accountSetList.append(info);
+                }
+            }
+        }
+    }
+    else
+    {
+        qDebug() << QStringLiteral("\u83b7\u53d6\u8d26\u5957\u5217\u8868\u5931\u8d25, planIndex:") << planIndex
+                 << "statusCode:" << statusCode;
     }
 
-    QByteArray data = reply->readAll();
     reply->deleteLater();
+    m_nPlanFetchCompleted++;
 
-    QJsonParseError jsonErr;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &jsonErr);
-    if (jsonErr.error != QJsonParseError::NoError || !doc.isObject())
+    if (m_nPlanFetchCompleted >= m_matchedPlans.size())
     {
-        m_pLoadingLabel->setText(QStringLiteral("\u89e3\u6790\u54cd\u5e94\u5931\u8d25"));
-        return;
+        if (m_accountSetList.isEmpty())
+        {
+            m_pLoadingLabel->setText(QStringLiteral("\u672a\u67e5\u8be2\u5230\u8d26\u5957\u4fe1\u606f"));
+            return;
+        }
+        populateTable();
     }
+}
 
-    QJsonObject root = doc.object();
-    int state = root["state"].toInt();
-    if (state != 1000)
-    {
-        m_pLoadingLabel->setText(QStringLiteral("\u63a5\u53e3\u8fd4\u56de\u9519\u8bef\uff0cstate=") + QString::number(state));
-        return;
-    }
-
-    QJsonArray arr = root["data"].toArray();
-    for (int i = 0; i < arr.size(); ++i)
-    {
-        QJsonObject obj = arr[i].toObject();
-        BackupAccountSetInfo info;
-        info.asId = obj["asId"].toInt();
-        info.asName = obj["asName"].toString();
-        info.appAsId = obj["appAsId"].toString();
-        info.asStartDate = obj["asStartYear"].toString() + "-" + obj["asStartMonth"].toString().rightJustified(2, '0');
-        info.asCurrentPeriod = obj["asCurrentYear"].toString() + "-" + obj["asCurrentMonth"].toString().rightJustified(2, '0');
-        m_accountSetList.append(info);
-    }
-
-    // 填充表格
+void BackupAccountSetWidget::populateTable()
+{
     m_pAccountTable->setRowCount(m_accountSetList.size());
     for (int i = 0; i < m_accountSetList.size(); ++i)
     {
@@ -320,10 +499,19 @@ void BackupAccountSetWidget::onFetchListFinished(QNetworkReply *reply)
 
         m_pAccountTable->setItem(i, 1, new QTableWidgetItem(info.asName));
         m_pAccountTable->setItem(i, 2, new QTableWidgetItem(info.asStartDate));
-        m_pAccountTable->setItem(i, 3, new QTableWidgetItem(info.asCurrentPeriod));
+        m_pAccountTable->setItem(i, 3, new QTableWidgetItem(info.productTypeDescription));
+        m_pAccountTable->setItem(i, 4, new QTableWidgetItem(QString::number(info.serviceId)));
     }
 
     showList();
+}
+
+QString BackupAccountSetWidget::buildCookieStringForPlan(int serviceId) const
+{
+    return lemoncofighelper::BuildJproCookie(m_pGlobalData->m_strNingMengCookie,
+                                             serviceId,
+                                             m_pGlobalData->m_nUserId,
+                                             m_pGlobalData->m_strAuthName);
 }
 
 // ======================== 全选 ========================
@@ -362,6 +550,7 @@ void BackupAccountSetWidget::onBackupBtnClicked()
             task.asId = m_accountSetList[i].asId;
             task.asName = m_accountSetList[i].asName;
             task.appAsId = m_accountSetList[i].appAsId;
+            task.serviceId = m_accountSetList[i].serviceId;
             task.progress = 0;
             task.finished = false;
             m_backupTasks.append(task);
@@ -410,7 +599,7 @@ void BackupAccountSetWidget::startBackupTask(int taskIndex)
     CHttpRequestHelper::configureSsl(request);
     CHttpRequestHelper::setJproApiHeaders(request);
     request.setRawHeader("appasid", task.appAsId.toUtf8());
-    request.setRawHeader("Cookie", buildCookieString().toUtf8());
+    request.setRawHeader("Cookie", buildCookieStringForPlan(task.serviceId).toUtf8());
 
     QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, QByteArray("{}"));
     CHttpRequestHelper::handleSslErrors(reply);
@@ -507,7 +696,7 @@ void BackupAccountSetWidget::pollProgress(int taskIndex)
     CHttpRequestHelper::configureSsl(request);
     CHttpRequestHelper::setJproApiHeaders(request);
     request.setRawHeader("appasid", task.appAsId.toUtf8());
-    request.setRawHeader("Cookie", buildCookieString().toUtf8());
+    request.setRawHeader("Cookie", buildCookieStringForPlan(task.serviceId).toUtf8());
 
     QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, QByteArray("{}"));
     CHttpRequestHelper::handleSslErrors(reply);
@@ -572,7 +761,7 @@ void BackupAccountSetWidget::downloadFile(int taskIndex)
     request.setUrl(QUrl(url));
     CHttpRequestHelper::configureSsl(request);
     CHttpRequestHelper::setJproApiHeaders(request);
-    request.setRawHeader("Cookie", buildCookieString().toUtf8());
+    request.setRawHeader("Cookie", buildCookieStringForPlan(task.serviceId).toUtf8());
     // 手动处理 302 重定向
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
@@ -608,7 +797,7 @@ void BackupAccountSetWidget::onDownloadRedirectFinished(QNetworkReply *reply, in
         dlRequest.setUrl(QUrl(location));
         CHttpRequestHelper::configureSsl(dlRequest);
         CHttpRequestHelper::setJproApiHeaders(dlRequest);
-        dlRequest.setRawHeader("Cookie", buildCookieString().toUtf8());
+        dlRequest.setRawHeader("Cookie", buildCookieStringForPlan(m_backupTasks[taskIndex].serviceId).toUtf8());
 
         QNetworkReply *dlReply = CHttpRequestHelper::networkManager()->get(dlRequest);
         CHttpRequestHelper::handleSslErrors(dlReply);

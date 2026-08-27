@@ -69,6 +69,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -81,6 +82,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
     </ClCompile>
@@ -108,6 +110,18 @@
     <QtMoc Include="functionselectwidget.h" />
     <QtMoc Include="deleteaccountsetwidget.h" />
     <QtMoc Include="backupaccountsetwidget.h" />
+    <QtMoc Include="repairaccountsetwidget.h" />
+    <QtMoc Include="jsonquerywidget.h" />
+    <QtMoc Include="subjectcodeconflictwidget.h" />
+    <QtMoc Include="subjectcodeseparatorwidget.h" />
+    <QtMoc Include="importpackageuploadwidget.h" />
+    <QtMoc Include="allownullaatypewidget.h" />
+    <QtMoc Include="emptysubjectnamewidget.h" />
+    <QtMoc Include="referenceaccountcoderepairwidget.h" />
+    <QtMoc Include="nonleafvoucherrepairwidget.h" />
+    <QtMoc Include="subjectmergewidget.h" />
+    <QtMoc Include="subjectconflictdialog.h" />
+    <QtMoc Include="access2003converterwidget.h" />
     <ClCompile Include="QtWidgetsApplication1.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="startupwindow.cpp" />
@@ -117,16 +131,46 @@
     <ClCompile Include="functionselectwidget.cpp" />
     <ClCompile Include="deleteaccountsetwidget.cpp" />
     <ClCompile Include="backupaccountsetwidget.cpp" />
+    <ClCompile Include="repairaccountsetwidget.cpp" />
+    <ClCompile Include="jsonquerywidget.cpp" />
+    <ClCompile Include="subjectcodeconflictwidget.cpp" />
+    <ClCompile Include="subjectcodeseparatorwidget.cpp" />
+    <ClCompile Include="importpackageuploadwidget.cpp" />
+    <ClCompile Include="allownullaatypewidget.cpp" />
+    <ClCompile Include="emptysubjectnamewidget.cpp" />
+    <ClCompile Include="referenceaccountcoderepairwidget.cpp" />
+    <ClCompile Include="nonleafvoucherrepairwidget.cpp" />
+    <ClCompile Include="subjectmergewidget.cpp" />
+    <ClCompile Include="subjectconflictdialog.cpp" />
+    <ClCompile Include="access2003converterwidget.cpp" />
     <ClCompile Include="httprequesthelper.cpp" />
     <ClCompile Include="lemoncofighelper.cpp" />
+    <ClCompile Include="Common\logger.cpp" />
+    <ClCompile Include="Common\repairpathconfigwidget.cpp" />
+    <ClCompile Include="Common\repairinputfilepickerwidget.cpp" />
+    <ClCompile Include="Common\subjectmergeengine.cpp" />
+    <ClCompile Include="Common\importpackageuploader.cpp" />
+    <ClCompile Include="Common\importpackagehistory.cpp" />
+    <ClCompile Include="Common\access2003converter.cpp" />
     <ClCompile Include="Common\usertoken.cpp" />
     <ClCompile Include="Common\globaldata.cpp" />
     <ClInclude Include="httprequesthelper.h" />
     <ClInclude Include="lemoncofighelper.h" />
+    <ClInclude Include="Common\logger.h" />
+    <ClInclude Include="Common\repairfilenameutils.h" />
+    <ClInclude Include="Common\repairpathconfigwidget.h" />
+    <ClInclude Include="Common\repairinputfilepickerwidget.h" />
+    <ClInclude Include="Common\subjectmergeengine.h" />
+    <ClInclude Include="Common\repairpathsettings.h" />
+    <ClInclude Include="Common\importpackageuploader.h" />
+    <ClInclude Include="Common\importpackagehistory.h" />
+    <ClInclude Include="Common\access2003converter.h" />
     <ClInclude Include="Common\globaldata.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Resource\http\Dev\Account.json" />
     <None Include="Resource\http\Dev2\Account.json" />
+    <None Include="Resource\http\Local\Account.json" />
     <None Include="Resource\http\Pro\Account.json" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

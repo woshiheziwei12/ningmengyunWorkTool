@@ -1,4 +1,5 @@
 #include "httprequesthelper.h"
+#include "lemoncofighelper.h"
 #include <QDebug>
 #include <QCoreApplication>
 #include <QNetworkCookieJar>
@@ -55,9 +56,31 @@ void CHttpRequestHelper::setJproApiHeaders(QNetworkRequest &request)
 {
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setHeader(QNetworkRequest::UserAgentHeader,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36");
-    request.setRawHeader("Origin", "https://jpro6.ningmengyun.com");
-    request.setRawHeader("Referer", "https://jpro6.ningmengyun.com/");
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36");
+    request.setRawHeader("Accept", "application/json, text/plain, */*");
+    request.setRawHeader("Sec-Fetch-Site", "same-site");
+    request.setRawHeader("Sec-Fetch-Mode", "cors");
+    request.setRawHeader("Sec-Fetch-Dest", "empty");
+    const QString jproOrigin = lemoncofighelper::AccountConfigValue(lemoncofighelper::kJproOriginKey);
+    if (!jproOrigin.isEmpty())
+    {
+        request.setRawHeader("Origin", jproOrigin.toUtf8());
+        request.setRawHeader("Referer", lemoncofighelper::WithTrailingSlash(jproOrigin).toUtf8());
+    }
+}
+
+void CHttpRequestHelper::setWbgateBrowserHeaders(QNetworkRequest &request)
+{
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36");
+    request.setRawHeader("Accept", "application/json, text/plain, */*");
+
+    const QString wwwOrigin = lemoncofighelper::AccountConfigValue(lemoncofighelper::kWwwOriginKey);
+    if (!wwwOrigin.isEmpty())
+    {
+        request.setRawHeader("Origin", wwwOrigin.toUtf8());
+        request.setRawHeader("Referer", lemoncofighelper::WithTrailingSlash(wwwOrigin).toUtf8());
+    }
 }
 
 void CHttpRequestHelper::handleSslErrors(QNetworkReply *reply)

@@ -27,6 +27,7 @@ public:
 
     // 设置 jproapi 请求通用头（UserAgent, ContentType, Origin, Referer）
     static void setJproApiHeaders(QNetworkRequest &request);
+    static void setWbgateBrowserHeaders(QNetworkRequest &request);
 
     // 为 QNetworkReply 忽略 SSL 错误并记录日志
     static void handleSslErrors(QNetworkReply *reply);

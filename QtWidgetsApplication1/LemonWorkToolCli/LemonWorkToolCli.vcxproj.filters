@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx</Extensions>
+    </Filter>
+    <Filter Include="Shared Files">
+      <UniqueIdentifier>{B47702D1-47BB-4F4C-A48A-B3EA9BA44B26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>qrc</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="..\QtWidgetsApplication1\themestyle.qrc">
+      <Filter>Resource Files</Filter>
+    </QtRcc>
+    <ClCompile Include="main.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="cliarguments.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="cliresult.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="masking.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="sessionstore.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="networkutils.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="authservice.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="accountsetservice.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="backupservice.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\logger.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\importpackagehistory.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\importpackageuploader.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\httprequesthelper.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\lemoncofighelper.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClInclude Include="cliarguments.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="cliresult.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="masking.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="sessionstore.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="networkutils.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="authservice.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="accountsetservice.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="backupservice.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\importpackagehistory.h"><Filter>Shared Files</Filter></ClInclude>
+    <None Include="LemonWorkToolCli-Local.cmd"><Filter>Resource Files</Filter></None>
+    <None Include="LemonWorkToolCli-Test.cmd"><Filter>Resource Files</Filter></None>
+  </ItemGroup>
+</Project>

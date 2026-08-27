@@ -40,8 +40,12 @@ private:
     void StartTimer();
     void StopTimer();
     void onReplyFinished(QNetworkReply *reply, WxLogUrlType urlType);
+    void fetchJwtToken();
+    void onJwtFinished(QNetworkReply *reply);
     void fetchServiceParams();
     void onFetchServiceParamsFinished(QNetworkReply *reply);
+    void fetchPlanServiceParams();
+    void onFetchPlanFinished(QNetworkReply *reply);
 
 protected:
     void timerEvent(QTimerEvent *event);

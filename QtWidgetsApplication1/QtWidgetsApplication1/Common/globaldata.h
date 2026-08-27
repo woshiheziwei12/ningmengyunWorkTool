@@ -19,6 +19,8 @@ public:
     int m_nServiceId;
     QString m_strAppAsId;
     QString m_strNingMengCookie;
+    QString m_strAuthName;
+    int m_nUserId;
 };
 
 #endif // GLOBALDATA_H

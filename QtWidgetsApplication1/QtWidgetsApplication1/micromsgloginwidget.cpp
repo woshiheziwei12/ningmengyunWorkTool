@@ -13,6 +13,7 @@
 #include <QMessageBox>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QUrlQuery>
 #include <QNetworkCookie>
 
@@ -285,9 +286,9 @@ void MicroMsgLoginWidget::onReplyFinished(QNetworkReply *reply, WxLogUrlType url
                     if (m_pGlobalData->m_bLogin)
                     {
                         m_pGlobalData->m_strNingMengCookie = m_pGlobalData->m_userToken.m_strAccessToken;
-                        // 动态获取 serviceId 和 appAsId
+                        // 先获取JWT token，再动态获取 serviceId 和 appAsId
                         reply->deleteLater();
-                        fetchServiceParams();
+                        fetchJwtToken();
                         return;
                     }
                 }
@@ -296,6 +297,100 @@ void MicroMsgLoginWidget::onReplyFinished(QNetworkReply *reply, WxLogUrlType url
     }
 
     reply->deleteLater();
+}
+
+void MicroMsgLoginWidget::fetchJwtToken()
+{
+    lemoncofighelper configHelper;
+    QString authHost = configHelper.GetAccountUrlByKey("authHost");
+    if (authHost.isEmpty())
+    {
+        fetchServiceParams();
+        return;
+    }
+
+    QString jwtUrl = authHost + "/v2/api/jwt";
+    QNetworkRequest request;
+    request.setUrl(QUrl(jwtUrl));
+    CHttpRequestHelper::configureSsl(request);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setHeader(QNetworkRequest::UserAgentHeader, "lemonClient");
+
+    QString cookie = "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
+    request.setRawHeader("Cookie", cookie.toUtf8());
+
+    QByteArray postData = "{}";
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->post(request, postData);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onJwtFinished(reply);
+    });
+}
+
+void MicroMsgLoginWidget::onJwtFinished(QNetworkReply *reply)
+{
+    int reqCode = 0;
+    QVariant variant = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    if (variant.isValid())
+        reqCode = variant.toInt();
+
+    if (reqCode != 200)
+    {
+        reply->deleteLater();
+        fetchServiceParams();
+        return;
+    }
+
+    QByteArray body = reply->readAll();
+    reply->deleteLater();
+
+    QJsonParseError jsonError;
+    QJsonDocument document = QJsonDocument::fromJson(body, &jsonError);
+    if (jsonError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        fetchServiceParams();
+        return;
+    }
+
+    QJsonObject obj = document.object();
+    if (!obj["success"].toBool())
+    {
+        fetchServiceParams();
+        return;
+    }
+
+    QString jwtToken = obj["token"].toString();
+    if (jwtToken.isEmpty())
+    {
+        fetchServiceParams();
+        return;
+    }
+
+    // JWT token for Bearer authorization
+    m_pGlobalData->m_userToken.SetAccessToken(jwtToken);
+
+    // 从JWT payload中解析用户ID（sub字段）
+    QStringList jwtParts = jwtToken.split('.');
+    if (jwtParts.size() >= 2)
+    {
+        QByteArray payload = QByteArray::fromBase64(jwtParts[1].toUtf8(), QByteArray::Base64UrlEncoding);
+        QJsonDocument payloadDoc = QJsonDocument::fromJson(payload);
+        if (payloadDoc.isObject())
+        {
+            QJsonObject payloadObj = payloadDoc.object();
+            QString sub = payloadObj["sub"].toString();
+            if (!sub.isEmpty())
+                m_pGlobalData->m_nUserId = sub.toInt();
+
+            QString authName = payloadObj.value("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name").toString();
+            if (authName.isEmpty())
+                authName = payloadObj.value("name").toString();
+            if (!authName.isEmpty())
+                m_pGlobalData->m_strAuthName = authName;
+        }
+    }
+
+    fetchServiceParams();
 }
 
 void MicroMsgLoginWidget::fetchServiceParams()
@@ -312,6 +407,7 @@ void MicroMsgLoginWidget::fetchServiceParams()
     QNetworkRequest request;
     request.setUrl(QUrl(wbgateUrl));
     CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::ManualRedirectPolicy);
     QString cookie = "ningmengcookie=" + m_pGlobalData->m_strNingMengCookie;
@@ -331,6 +427,10 @@ void MicroMsgLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
     if (variant.isValid())
         reqCode = variant.toInt();
 
+    m_pGlobalData->m_nServiceId = 0;
+    m_pGlobalData->m_strAppAsId.clear();
+
+    bool hasServiceParams = false;
     if (reqCode == 302 || reqCode == 301)
     {
         QString location = QString::fromUtf8(reply->rawHeader("Location"));
@@ -352,8 +452,88 @@ void MicroMsgLoginWidget::onFetchServiceParamsFinished(QNetworkReply *reply)
             if (ck.name() == "service-id")
                 m_pGlobalData->m_nServiceId = QString::fromUtf8(ck.value()).toInt();
         }
+        hasServiceParams = m_pGlobalData->m_nServiceId != 0 && !m_pGlobalData->m_strAppAsId.isEmpty();
     }
 
     reply->deleteLater();
+    if (!hasServiceParams)
+    {
+        fetchPlanServiceParams();
+        return;
+    }
     emit login_success();
+}
+
+void MicroMsgLoginWidget::fetchPlanServiceParams()
+{
+    lemoncofighelper configHelper;
+    QString planUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kWbgatePlanUrlKey);
+    if (planUrl.isEmpty())
+        return;
+
+    QNetworkRequest request;
+    request.setUrl(QUrl(planUrl));
+    CHttpRequestHelper::configureSsl(request);
+    CHttpRequestHelper::setWbgateBrowserHeaders(request);
+    request.setRawHeader("Authorization", ("Bearer " + m_pGlobalData->m_userToken.m_strAccessToken).toUtf8());
+    request.setRawHeader("Cookie", ("ningmengcookie=" + m_pGlobalData->m_strNingMengCookie).toUtf8());
+
+    QNetworkReply *reply = CHttpRequestHelper::networkManager()->get(request);
+    CHttpRequestHelper::handleSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onFetchPlanFinished(reply);
+    });
+}
+
+void MicroMsgLoginWidget::onFetchPlanFinished(QNetworkReply *reply)
+{
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QByteArray body = reply->readAll();
+    reply->deleteLater();
+
+    QJsonParseError jsonError;
+    QJsonDocument doc = QJsonDocument::fromJson(body, &jsonError);
+    if (statusCode != 200 || jsonError.error != QJsonParseError::NoError || !doc.isObject())
+        return;
+
+    QJsonArray plans = doc.object()["data"].toObject()["data"].toArray();
+
+    // 优先选择 administrator 匹配当前登录用户的 plan
+    int fallbackServiceId = 0;
+    QString fallbackAppAsId;
+
+    for (const QJsonValue &value : plans)
+    {
+        QJsonObject plan = value.toObject();
+        if (plan["productType"].toString() != "acc")
+            continue;
+
+        int serviceId = plan["id"].toInt();
+        QString appAsId = plan["lastAccountSet"].toObject()["appAsid"].toString();
+        if (serviceId == 0 || appAsId.isEmpty())
+            continue;
+
+        int administrator = plan["administrator"].toInt();
+        if (m_pGlobalData->m_nUserId != 0 && administrator == m_pGlobalData->m_nUserId)
+        {
+            m_pGlobalData->m_nServiceId = serviceId;
+            m_pGlobalData->m_strAppAsId = appAsId;
+            emit login_success();
+            return;
+        }
+
+        if (fallbackServiceId == 0)
+        {
+            fallbackServiceId = serviceId;
+            fallbackAppAsId = appAsId;
+        }
+    }
+
+    if (fallbackServiceId != 0 && !fallbackAppAsId.isEmpty())
+    {
+        m_pGlobalData->m_nServiceId = fallbackServiceId;
+        m_pGlobalData->m_strAppAsId = fallbackAppAsId;
+        emit login_success();
+        return;
+    }
 }

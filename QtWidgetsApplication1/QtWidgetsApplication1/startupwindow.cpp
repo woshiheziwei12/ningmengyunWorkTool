@@ -3,6 +3,7 @@
 #include "pwdloginwidget.h"
 #include "smsloginwidget.h"
 #include "micromsgloginwidget.h"
+#include "lemoncofighelper.h"
 #include <QMouseEvent>
 #include <QDesktopServices>
 #include <QSslSocket>
@@ -28,7 +29,8 @@ StartUpWindow::StartUpWindow(GlobalData *globalData, QWidget *parent) :
     qDebug() << "SSL library runtime version:" << QSslSocket::sslLibraryVersionString();
 
     m_loginMothed = WeiXinSaoMa;
-    registerUrl = QLatin1String("https://www.ningmengyun.com/?ac=reg&rfrom=1040");
+    lemoncofighelper configHelper;
+    registerUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kRegisterUrlKey);
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
 
     mLocation = this->geometry();

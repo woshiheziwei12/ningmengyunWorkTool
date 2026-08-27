@@ -20,5 +20,6 @@
         <file>Resource/http/Dev/Account.json</file>
         <file>Resource/http/Pro/Account.json</file>
         <file>Resource/http/Dev2/Account.json</file>
+        <file>Resource/http/Local/Account.json</file>
     </qresource>
 </RCC>
