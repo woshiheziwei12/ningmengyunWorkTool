@@ -655,162 +655,20 @@ border:none;</string>
         </item>
         <item>
          <layout class="QHBoxLayout" name="layouLoginMenu">
-          <property name="spacing">
-           <number>12</number>
-          </property>
-          <property name="topMargin">
-           <number>30</number>
-          </property>
-          <item>
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnMicroMsgMode">
-            <property name="minimumSize">
-             <size>
-              <width>96</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>96</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>&#24494;&#20449;&#25195;&#30721;&#30331;&#24405;</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-            <property name="autoDefault">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line_2">
-            <property name="minimumSize">
-             <size>
-              <width>1</width>
-              <height>18</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>1</width>
-              <height>18</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">background:rgba(208,208,208,1);
-border:1px solid rgba(151,151,151,1);</string>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnPwdMode">
-            <property name="minimumSize">
-             <size>
-              <width>64</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>64</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>&#23494;&#30721;&#30331;&#24405;</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="autoDefault">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="Line" name="line">
-            <property name="minimumSize">
-             <size>
-              <width>1</width>
-              <height>18</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>1</width>
-              <height>18</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">background:rgba(208,208,208,1);
-border:1px solid rgba(151,151,151,1);</string>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnSmsMode">
-            <property name="minimumSize">
-             <size>
-              <width>80</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>80</width>
-              <height>22</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>&#39564;&#35777;&#30721;&#30331;&#24405;</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="autoDefault">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
+          <property name="spacing"><number>12</number></property>
+          <property name="leftMargin"><number>30</number></property>
+          <property name="topMargin"><number>15</number></property>
+          <property name="rightMargin"><number>30</number></property>
+          <item><widget class="QLabel" name="labelPasswordLogin">
+           <property name="text"><string>账号密码登录</string></property>
+           <property name="styleSheet"><string>font-size:16px; font-weight:600;</string></property>
+          </widget></item>
+          <item><spacer name="loginEnvironmentSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint"><size><width>10</width><height>10</height></size></property></spacer></item>
+          <item><widget class="QComboBox" name="loginEnvironment">
+           <property name="minimumSize"><size><width>120</width><height>30</height></size></property>
+           <property name="accessibleName"><string>登录环境</string></property>
+           <property name="toolTip"><string>选择正式环境或测试环境</string></property>
+          </widget></item>
          </layout>
         </item>
         <item>
@@ -914,10 +772,8 @@ line-height:20px;</string>
  </widget>
  <layoutdefault spacing="6" margin="0"/>
  <tabstops>
+  <tabstop>loginEnvironment</tabstop>
   <tabstop>btnRegistor</tabstop>
-  <tabstop>btnMicroMsgMode</tabstop>
-  <tabstop>btnPwdMode</tabstop>
-  <tabstop>btnSmsMode</tabstop>
   <tabstop>btnMin</tabstop>
   <tabstop>btnExit</tabstop>
  </tabstops>

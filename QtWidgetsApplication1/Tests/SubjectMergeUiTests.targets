@@ -1,0 +1,12 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Opt-in only: test the private dialog and the real ZIP path in one TU. -->
+  <ItemGroup>
+    <ClCompile Remove="main.cpp;subjectmergewidget.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)SubjectMergeUiTests.cpp">
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <Link><SubSystem>Console</SubSystem></Link>
+  </ItemDefinitionGroup>
+</Project>

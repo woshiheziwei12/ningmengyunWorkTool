@@ -1,4 +1,6 @@
+﻿#include "Common/sessiontaskguard.h"
 #include "repairaccountsetwidget.h"
+#include "Common/repairinputfileutils.h"
 #include "subjectconflictdialog.h"
 #include "Common/globaldata.h"
 #include "Common/importpackageuploader.h"
@@ -407,6 +409,7 @@ void RepairAccountSetWidget::ensureRepairDir() const
 
 void RepairAccountSetWidget::scanJsonFiles()
 {
+    SessionTaskGuard sessionTask(this);
     m_accountSetList.clear();
 
     delete m_pScanTemporaryDir;
@@ -583,8 +586,8 @@ void RepairAccountSetWidget::fillTable()
         const bool noSiblingDuplicate = m_siblingNameRepairOnly
             && info.status == QStringLiteral("未发现同级科目重名");
         statusItem->setForeground(info.valid
-            ? QColor(1, 130, 72)
-            : noSiblingDuplicate ? QColor(120, 120, 120) : QColor(220, 53, 69));
+            ? QColor(110, 224, 177)
+            : noSiblingDuplicate ? QColor(156, 171, 194) : QColor(255, 139, 162));
         m_pAccountTable->setItem(i, 4, statusItem);
     }
 
@@ -1379,6 +1382,7 @@ void RepairAccountSetWidget::onRefreshClicked()
 
 void RepairAccountSetWidget::runRepairPipeline()
 {
+    SessionTaskGuard sessionTask(this);
     AppLogger::operation(QStringLiteral("\u4fee\u590d\u8d26\u5957\u56fa\u5b9a\u6d41\u6c34\u7ebf\u5f00\u59cb"));
     const QList<int> rows = selectedRows();
     if (rows.isEmpty())
@@ -1404,7 +1408,7 @@ void RepairAccountSetWidget::runRepairPipeline()
             if (statusItem)
             {
                 statusItem->setText(step);
-                statusItem->setForeground(QColor(30, 110, 180));
+                statusItem->setForeground(QColor(124, 189, 255));
             }
             if (m_pDropLabel)
                 m_pDropLabel->setText(text);
@@ -1443,7 +1447,7 @@ void RepairAccountSetWidget::runRepairPipeline()
                 if (statusItem)
                 {
                     statusItem->setText(m_accountSetList[row].status);
-                    statusItem->setForeground(QColor(120, 120, 120));
+                    statusItem->setForeground(QColor(156, 171, 194));
                 }
                 continue;
             }
@@ -1469,7 +1473,7 @@ void RepairAccountSetWidget::runRepairPipeline()
             if (statusItem)
             {
                 statusItem->setText(m_accountSetList[row].status);
-                statusItem->setForeground(QColor(220, 53, 69));
+                statusItem->setForeground(QColor(255, 139, 162));
             }
             AppLogger::error(QStringLiteral("\u4fee\u590d\u8d26\u5957\u6d41\u6c34\u7ebf\u5931\u8d25 asName=%1 error=%2")
                 .arg(info.asName, errorMessage));
@@ -1486,7 +1490,7 @@ void RepairAccountSetWidget::runRepairPipeline()
         {
             statusItem->setText(m_accountSetList[row].status);
             statusItem->setToolTip(m_accountSetList[row].status);
-            statusItem->setForeground(QColor(1, 130, 72));
+            statusItem->setForeground(QColor(110, 224, 177));
         }
         AppLogger::operation(QStringLiteral("\u4fee\u590d\u8d26\u5957\u6d41\u6c34\u7ebf\u6210\u529f asName=%1 conflicts=%2 renamed=%3 missingAa=%4 appendedAa=%5 removedBalances=%6 output=%7")
             .arg(info.asName)
@@ -1742,8 +1746,8 @@ void RepairAccountSetWidget::onRepairClicked()
         {
             statusItem->setText(m_accountSetList[row].status);
             statusItem->setForeground(m_accountSetList[row].status == QStringLiteral("\u5df2\u4fee\u590d")
-                ? QColor(1, 130, 72)
-                : QColor(220, 53, 69));
+                ? QColor(110, 224, 177)
+                : QColor(255, 139, 162));
         }
     }
 
@@ -1980,6 +1984,11 @@ void RepairAccountSetWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void RepairAccountSetWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasZipFile(event->mimeData()))
     {
         event->ignore();
@@ -2000,7 +2009,8 @@ void RepairAccountSetWidget::dropEvent(QDropEvent *event)
             continue;
 
         QString errorMessage;
-        if (extractZipToRepairDir(zipPath, &errorMessage))
+        const QString inputPath = RepairInputFileUtils::copyToInputDirectory(zipPath, &errorMessage);
+        if (!inputPath.isEmpty())
         {
             ++successCount;
         }
@@ -2011,16 +2021,17 @@ void RepairAccountSetWidget::dropEvent(QDropEvent *event)
     }
 
     loadAccountSetList();
-    event->acceptProposedAction();
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
 
     if (!errors.isEmpty())
     {
-        QMessageBox::warning(this, QStringLiteral("\u90e8\u5206\u538b\u7f29\u5305\u89e3\u538b\u5931\u8d25"),
+        QMessageBox::warning(this, QStringLiteral("部分压缩包导入失败"),
                              errors.join("\n"));
     }
     else if (successCount > 0)
     {
         QMessageBox::information(this, QStringLiteral("\u5df2\u5bfc\u5165"),
-                                 QStringLiteral("\u5df2\u89e3\u538b %1 \u4e2a\u538b\u7f29\u5305\u5e76\u91cd\u65b0\u626b\u63cf\u3002").arg(successCount));
+                                 QStringLiteral("已留存 %1 个压缩包到共享输入目录并重新扫描。").arg(successCount));
     }
 }

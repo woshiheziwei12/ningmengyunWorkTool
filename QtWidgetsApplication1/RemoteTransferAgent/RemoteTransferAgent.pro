@@ -1,0 +1,9 @@
+QT += core gui widgets
+CONFIG += c++11
+CONFIG -= app_bundle
+TEMPLATE = app
+TARGET = LemonTransferAgent
+INCLUDEPATH += ../QtWidgetsApplication1
+SOURCES += main.cpp ../QtWidgetsApplication1/Common/RemoteFileTransfer.cpp
+HEADERS += ../QtWidgetsApplication1/Common/RemoteFileTransfer.h
+win32-msvc:QMAKE_CXXFLAGS += /utf-8

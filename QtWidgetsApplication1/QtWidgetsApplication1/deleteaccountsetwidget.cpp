@@ -1,4 +1,4 @@
-#include "deleteaccountsetwidget.h"
+﻿#include "deleteaccountsetwidget.h"
 #include "httprequesthelper.h"
 #include "lemoncofighelper.h"
 #include "Common/globaldata.h"
@@ -69,8 +69,7 @@ void DeleteAccountSetWidget::setupListPage()
     QHBoxLayout *titleLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel(QStringLiteral("\u8bf7\u9009\u62e9\u8981\u5220\u9664\u7684\u8d26\u5957"), page);
     titleLabel->setObjectName("labelPageTitle");
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
+    titleLayout->addWidget(titleLabel, 1);
 
     m_pBtnSelectAll = new QPushButton(QStringLiteral("\u5168\u9009"), page);
     m_pBtnSelectAll->setObjectName("btnSelectAll");
@@ -191,6 +190,7 @@ void DeleteAccountSetWidget::showList()
 
 void DeleteAccountSetWidget::showResult()
 {
+    setProperty("sessionBusyCloudTask", false);
     m_pStackedWidget->setCurrentIndex(2);
 }
 
@@ -509,6 +509,7 @@ void DeleteAccountSetWidget::onDeleteBtnClicked()
 
     if (ret != QMessageBox::Yes) return;
 
+    setProperty("sessionBusyCloudTask", true);
     m_pBtnDelete->setEnabled(false);
     m_pBtnDelete->setText(QStringLiteral("\u5220\u9664\u4e2d..."));
     deleteNextAccountSet();
@@ -531,7 +532,7 @@ void DeleteAccountSetWidget::deleteNextAccountSet()
 
             QTableWidgetItem *statusItem = new QTableWidgetItem(
                 res.success ? QStringLiteral("\u6210\u529f") : QStringLiteral("\u5931\u8d25"));
-            statusItem->setForeground(res.success ? QColor(1, 194, 87) : QColor(255, 77, 79));
+            statusItem->setForeground(res.success ? QColor(110, 224, 177) : QColor(255, 139, 162));
             m_pResultTable->setItem(i, 1, statusItem);
 
             m_pResultTable->setItem(i, 2, new QTableWidgetItem(res.message));

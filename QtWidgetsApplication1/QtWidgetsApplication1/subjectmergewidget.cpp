@@ -1,3 +1,4 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "subjectmergewidget.h"
 
 #include "Common/globaldata.h"
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <new>
 #include <QApplication>
 #include <QComboBox>
 #include <QDateTime>
@@ -51,6 +53,13 @@
 
 namespace
 {
+class MergeWaitCursor
+{
+public:
+    MergeWaitCursor() { QApplication::setOverrideCursor(Qt::WaitCursor); }
+    ~MergeWaitCursor() { QApplication::restoreOverrideCursor(); }
+};
+
 struct SubjectMergeAnalysis
 {
     bool ok = false;
@@ -68,16 +77,6 @@ struct SubjectMergeFinalization
     QString outputZipPath;
     QString mappingPath;
     QString errorMessage;
-};
-
-struct MergeDialogSnapshot
-{
-    QJsonObject root;
-    QMap<QString, QString> mapping;
-    QStringList logs;
-    int changedVoucherCount = 0;
-    int changedBalanceCount = 0;
-    int reversedOpeningCount = 0;
 };
 
 bool supportedInput(const QString &path)
@@ -365,7 +364,6 @@ public:
           m_newName(new QLineEdit(this)),
           m_directionCombo(new QComboBox(this)),
           m_mergeButton(new QPushButton(QStringLiteral("合并勾选科目"), this)),
-          m_undoButton(new QPushButton(QStringLiteral("撤销上一次合并"), this)),
           m_history(new QTextEdit(this)),
           m_buttonBox(new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                                           Qt::Horizontal, this))
@@ -377,7 +375,7 @@ public:
         QVBoxLayout *layout = new QVBoxLayout(this);
         QLabel *description = new QLabel(
             QStringLiteral("勾选至少两个父级相同的科目，选择现有目标或新建目标；"
-                           "合并后可继续勾选其他科目，最后统一生成新数据包。"), this);
+                           "合并后可继续勾选其他科目，最后统一生成新数据包。不支持撤销；误合并后请重新打开原始数据包。"), this);
         description->setWordWrap(true);
         layout->addWidget(description);
 
@@ -420,7 +418,6 @@ public:
 
         QHBoxLayout *actions = new QHBoxLayout();
         actions->addWidget(m_mergeButton);
-        actions->addWidget(m_undoButton);
         actions->addStretch();
         layout->addLayout(actions);
 
@@ -441,8 +438,6 @@ public:
                 [this](int) { updateTargetControls(); });
         connect(m_mergeButton, &QPushButton::clicked, this,
                 [this]() { applyMerge(); });
-        connect(m_undoButton, &QPushButton::clicked, this,
-                [this]() { undoMerge(); });
         connect(m_buttonBox, &QDialogButtonBox::accepted, this,
                 [this]() { acceptIfMerged(); });
         connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -456,7 +451,7 @@ public:
     int changedVoucherCount() const { return m_changedVoucherCount; }
     int changedBalanceCount() const { return m_changedBalanceCount; }
     int reversedOpeningCount() const { return m_reversedOpeningCount; }
-    int operationCount() const { return m_snapshots.size(); }
+    int operationCount() const { return m_operationCount; }
 
 private:
     void rebuildTree()
@@ -621,8 +616,7 @@ private:
                 m_targetCombo->setCurrentIndex(previousIndex);
         }
         m_mergeButton->setEnabled(codes.size() >= 2);
-        m_undoButton->setEnabled(!m_snapshots.isEmpty());
-        m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(!m_snapshots.isEmpty());
+        m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_operationCount > 0);
         updateTargetControls();
     }
 
@@ -671,6 +665,44 @@ private:
 
     void applyMerge()
     {
+        // Keep one temporary rollback state only while applying this operation.
+        const QJsonObject previousRoot = m_root;
+        const auto previousMapping = m_mapping;
+        const auto previousLogs = m_logs;
+        const int previousOperations = m_operationCount;
+        const int previousVouchers = m_changedVoucherCount;
+        const int previousBalances = m_changedBalanceCount;
+        const int previousReversed = m_reversedOpeningCount;
+        try
+        {
+            applyMergeImpl();
+        }
+        catch (const std::bad_alloc &)
+        {
+            m_root = previousRoot;
+            m_mapping = previousMapping;
+            m_logs = previousLogs;
+            m_operationCount = previousOperations;
+            m_changedVoucherCount = previousVouchers;
+            m_changedBalanceCount = previousBalances;
+            m_reversedOpeningCount = previousReversed;
+            try
+            {
+                m_history->setPlainText(m_logs.join(QStringLiteral("\n")));
+                rebuildTree();
+            }
+            catch (const std::bad_alloc &)
+            {
+                m_mergeButton->setEnabled(false);
+                m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
+            }
+            QMessageBox::warning(this, QStringLiteral("科目合并失败"),
+                QStringLiteral("内存不足，本次合并未应用。如无法继续操作，请重新打开原始数据包。"));
+        }
+    }
+
+    void applyMergeImpl()
+    {
         SubjectMergeRequest request;
         request.sourceCodes = checkedCodes();
         request.createTarget = m_targetCombo->currentData().toString()
@@ -682,9 +714,11 @@ private:
 
         SubjectMergeResult result;
         QString error;
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        const bool merged = SubjectMergeEngine::merge(m_root, request, &result, &error);
-        QApplication::restoreOverrideCursor();
+        bool merged = false;
+        {
+            const MergeWaitCursor cursor;
+            merged = SubjectMergeEngine::merge(m_root, request, &result, &error);
+        }
         if (!merged)
         {
             QMessageBox::warning(this, QStringLiteral("科目合并失败"), error);
@@ -698,7 +732,8 @@ private:
             "期初科目编码调整：%3 条\n"
             "凭证科目编码调整：%4 条\n"
             "期初金额因借贷方向相反而取反：%5 条\n\n"
-            "“编码调整”只表示 AcctCode 变化，不等于金额变化。是否继续？")
+            "“编码调整”只表示 AcctCode 变化，不等于金额变化。\n"
+            "本次合并不支持撤销，误操作后需重新打开原始数据包。是否继续？")
                 .arg(result.removedAccountCount)
                 .arg(result.createdAccountCount)
                 .arg(result.changedBalanceCount)
@@ -711,54 +746,36 @@ private:
             return;
         }
 
-        MergeDialogSnapshot snapshot;
-        snapshot.root = m_root;
-        snapshot.mapping = m_mapping;
-        snapshot.logs = m_logs;
-        snapshot.changedVoucherCount = m_changedVoucherCount;
-        snapshot.changedBalanceCount = m_changedBalanceCount;
-        snapshot.reversedOpeningCount = m_reversedOpeningCount;
-        m_snapshots.append(snapshot);
-
-        for (auto it = m_mapping.begin(); it != m_mapping.end(); ++it)
+        auto nextMapping = m_mapping;
+        auto nextLogs = m_logs;
+        for (auto it = nextMapping.begin(); it != nextMapping.end(); ++it)
         {
             if (result.codeMapping.contains(it.value()))
                 it.value() = result.codeMapping.value(it.value());
         }
         for (auto it = result.codeMapping.constBegin(); it != result.codeMapping.constEnd(); ++it)
         {
-            if (!m_mapping.contains(it.key()))
-                m_mapping.insert(it.key(), it.value());
+            if (!nextMapping.contains(it.key()))
+                nextMapping.insert(it.key(), it.value());
         }
+        nextLogs.append(result.logs);
+        const QString historyText = nextLogs.join(QStringLiteral("\n"));
         m_root = result.root;
-        m_logs.append(result.logs);
+        m_mapping.swap(nextMapping);
+        m_logs.swap(nextLogs);
+        ++m_operationCount;
         m_changedVoucherCount += result.changedVoucherCount;
         m_changedBalanceCount += result.changedBalanceCount;
         m_reversedOpeningCount += result.reversedOpeningCount;
         m_newCode->clear();
         m_newName->clear();
-        m_history->setPlainText(m_logs.join(QStringLiteral("\n")));
-        rebuildTree();
-    }
-
-    void undoMerge()
-    {
-        if (m_snapshots.isEmpty())
-            return;
-        const MergeDialogSnapshot snapshot = m_snapshots.takeLast();
-        m_root = snapshot.root;
-        m_mapping = snapshot.mapping;
-        m_logs = snapshot.logs;
-        m_changedVoucherCount = snapshot.changedVoucherCount;
-        m_changedBalanceCount = snapshot.changedBalanceCount;
-        m_reversedOpeningCount = snapshot.reversedOpeningCount;
-        m_history->setPlainText(m_logs.join(QStringLiteral("\n")));
+        m_history->setPlainText(historyText);
         rebuildTree();
     }
 
     void acceptIfMerged()
     {
-        if (m_snapshots.isEmpty())
+        if (m_operationCount == 0)
         {
             QMessageBox::information(this, QStringLiteral("尚未合并"),
                                      QStringLiteral("请至少完成一次科目合并后再生成数据包。"));
@@ -776,7 +793,7 @@ private:
     QMap<QString, int> m_subtreeVoucherCounts;
     QMap<QString, QString> m_mapping;
     QStringList m_logs;
-    QList<MergeDialogSnapshot> m_snapshots;
+    int m_operationCount = 0;
     int m_changedVoucherCount = 0;
     int m_changedBalanceCount = 0;
     int m_reversedOpeningCount = 0;
@@ -788,7 +805,6 @@ private:
     QLineEdit *m_newName;
     QComboBox *m_directionCombo;
     QPushButton *m_mergeButton;
-    QPushButton *m_undoButton;
     QTextEdit *m_history;
     QDialogButtonBox *m_buttonBox;
 };
@@ -886,6 +902,7 @@ QString SubjectMergeWidget::workRootDir() const
 
 void SubjectMergeWidget::setRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     m_pBtnBack->setEnabled(!running);
     m_pPathConfig->setEnabled(!running);
@@ -1034,6 +1051,11 @@ void SubjectMergeWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void SubjectMergeWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasSupportedInput(event->mimeData()))
     {
         event->ignore();
@@ -1043,8 +1065,16 @@ void SubjectMergeWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && supportedInput(url.toLocalFile()))
         {
-            event->acceptProposedAction();
-            startProcessFile(url.toLocalFile());
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            refreshInputFiles();
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
+            startProcessFile(inputPath);
             return;
         }
     }

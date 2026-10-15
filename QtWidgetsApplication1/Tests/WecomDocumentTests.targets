@@ -1,0 +1,24 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Remove="@(ClCompile)" />
+    <QtMoc Remove="@(QtMoc)" />
+    <QtRcc Remove="@(QtRcc)" />
+    <QtUic Remove="@(QtUic)" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)WecomDocumentTests.cpp">
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomDocumentData.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomDocumentReader.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomBrowser.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomSessionStore.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomLocalServer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)WecomLocalServerTests.cpp">
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <QtMoc Include="$(MSBuildProjectDirectory)\Common\WecomLocalServer.h" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\wecomdocumentwidget.cpp" />
+    <QtMoc Include="$(MSBuildProjectDirectory)\Common\WecomDocumentReader.h" />
+    <QtMoc Include="$(MSBuildProjectDirectory)\Common\WecomBrowser.h" />
+    <QtMoc Include="$(MSBuildProjectDirectory)\wecomdocumentwidget.h" />
+  </ItemGroup>
+</Project>

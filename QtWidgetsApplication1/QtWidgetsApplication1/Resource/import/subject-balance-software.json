@@ -1,0 +1,2168 @@
+[
+  {
+    "id": 1007,
+    "enumName": "JingDouYunYunKuaiJi",
+    "name": "精斗云_云会计",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "科目、余额和凭证均必填；凭证仅支持“凭证导入模板”，不支持直接导出的凭证列表。",
+    "uncertain": false
+  },
+  {
+    "id": 1011,
+    "enumName": "KingdeeYunXingKong",
+    "name": "金蝶云星空",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 1020,
+    "enumName": "KingdeeYunXingKongUltimate",
+    "name": "金蝶云星空旗舰版",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 1012,
+    "enumName": "KingdeeYunXingChen",
+    "name": "金蝶云星辰",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2001,
+    "enumName": "ChanjetT3Std",
+    "name": "畅捷通(用友)T3标准\\普及版/用友UFERP-M8.11",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2002,
+    "enumName": "ChanjetTPlusStd",
+    "name": "畅捷通T+标准版",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2004,
+    "enumName": "ChanjetT6",
+    "name": "畅捷通T6",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2006,
+    "enumName": "YongYouU8",
+    "name": "用友U8",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2012,
+    "enumName": "YongYouYonSuite",
+    "name": "用友YonSuite",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2013,
+    "enumName": "YongYouNC",
+    "name": "用友NC",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2007,
+    "enumName": "ChanjetHKJ",
+    "name": "畅捷通好会计",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2008,
+    "enumName": "ChanjetYDZ",
+    "name": "畅捷通易代账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx",
+          ".zip"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx",
+          ".zip"
+        ],
+        "notes": "接口格式校验允许 ZIP，但当前解析器先按 Excel 读取，建议使用 Excel。"
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "余额附件可为 Excel 或 ZIP。入口虽允许凭证 ZIP，但当前解析器会先按 Excel 读取凭证，建议使用 Excel 凭证。",
+    "uncertain": true
+  },
+  {
+    "id": 2009,
+    "enumName": "ChanjetYYT",
+    "name": "用友通",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2010,
+    "enumName": "ChanjetT1JZB",
+    "name": "畅捷通T1记账宝",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 2011,
+    "enumName": "ChanjetTPlus13",
+    "name": "畅捷通T+13.0",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 3001,
+    "enumName": "AnyiV5",
+    "name": "安易V5",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 3002,
+    "enumName": "AnyiV8",
+    "name": "安易V8",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 3003,
+    "enumName": "AnyiV6",
+    "name": "安易V6",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 6001,
+    "enumName": "ACNETStd",
+    "name": "AC.NET会稽源标准版",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 7001,
+    "enumName": "InspurPS",
+    "name": "浪潮PS",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 7002,
+    "enumName": "InspurYun",
+    "name": "浪潮云会计",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 8001,
+    "enumName": "XinZhongDa",
+    "name": "新中大银色快车SE",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 8002,
+    "enumName": "XinZhongDaV4",
+    "name": "新中大V4",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11002,
+    "enumName": "SDV3",
+    "name": "速达V3",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11003,
+    "enumName": "SDV3NET",
+    "name": "速达V3.Net/V30.Net/V300.Net",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11011,
+    "enumName": "SD5000",
+    "name": "速达5000/速达5000Pro商业",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11012,
+    "enumName": "SDV5",
+    "name": "速达V5",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11013,
+    "enumName": "SDV5NET",
+    "name": "速达V5.Net/V50.Net/V500.Net",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11021,
+    "enumName": "SD7000",
+    "name": "速达7000",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11022,
+    "enumName": "SDV7",
+    "name": "速达V7",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11023,
+    "enumName": "SDV7NET",
+    "name": "速达V7.Net/V70.Net/V700.Net",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11024,
+    "enumName": "SDHonorBAS",
+    "name": "速达荣耀BAS/天耀3000BAS/4000BAS",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11025,
+    "enumName": "SDTY3000Pro",
+    "name": "速达天耀3000Pro/速达3000cloud",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 11026,
+    "enumName": "SDTY3000STD",
+    "name": "速达3000财务STD",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 16001,
+    "enumName": "SiFang",
+    "name": "四方财务",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 17001,
+    "enumName": "AisinoA6",
+    "name": "航天信息A6",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 17002,
+    "enumName": "AisinoA3",
+    "name": "航天信息A3",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 19001,
+    "enumName": "YunDou",
+    "name": "芸豆会计",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx",
+          ".zip"
+        ],
+        "notes": "接口格式校验允许 ZIP，但当前解析器先按 Excel 读取，建议使用 Excel。"
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "入口虽允许凭证 ZIP，但当前解析器直接按 Excel 读取凭证，建议使用 Excel 凭证。",
+    "uncertain": true
+  },
+  {
+    "id": 22001,
+    "enumName": "YiQi",
+    "name": "亿企代账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ],
+        "notes": "科目为 TXT 时必填；可上传包含余额与凭证工作表的组合工作簿。"
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx",
+          ".txt"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "当前服务从组合工作簿读取凭证，不读取独立凭证附件。科目 TXT 模式需同时上传余额/凭证组合工作簿；科目 Excel 模式从科目附件读取余额，从余额附件读取凭证。",
+    "uncertain": true
+  },
+  {
+    "id": 23001,
+    "enumName": "QiMingXing",
+    "name": "企明星",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 24001,
+    "enumName": "YunDaiZhang",
+    "name": "云代账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 25001,
+    "enumName": "NuoNuo",
+    "name": "诺诺云记账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx",
+          ".zip"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 26001,
+    "enumName": "BoKeB8",
+    "name": "博科B8",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 27002,
+    "enumName": "JinCaiDaiZhang",
+    "name": "金财代账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 27003,
+    "enumName": "HuiCaiShui",
+    "name": "慧财税/微宝",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 28001,
+    "enumName": "RunHeng",
+    "name": "润衡财务",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 30001,
+    "enumName": "EErpE",
+    "name": "金算盘eERP-E",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 30002,
+    "enumName": "EErpB",
+    "name": "金算盘eERP-B",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 31001,
+    "enumName": "ZhangWuYou",
+    "name": "金蝶账无忧V5.0",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 32001,
+    "enumName": "YunZhangFang",
+    "name": "云帐房/经纬财云/经纬天工",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 32010,
+    "enumName": "NinetyOneYunZhang",
+    "name": "91云账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 33001,
+    "enumName": "HuiSuanZhang",
+    "name": "慧算账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 35001,
+    "enumName": "DaZhangFang",
+    "name": "大账房",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 40001,
+    "enumName": "ZhuoZhangCaiWu",
+    "name": "卓账财务",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 50001,
+    "enumName": "BeiYun",
+    "name": "贝云",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": true,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 60002,
+    "enumName": "GJPCMSQ",
+    "name": "管家婆财贸双全",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 61002,
+    "enumName": "JingTongCaiShui",
+    "name": "鲸通财税",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 62002,
+    "enumName": "YunCaiShui365",
+    "name": "365云财税",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "科目数据应位于凭证附件的“科目备查表”工作表中，无需独立科目附件。",
+    "uncertain": false
+  },
+  {
+    "id": 63001,
+    "enumName": "HuiDaiZhang",
+    "name": "慧代账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 64001,
+    "enumName": "ZhongMaYun",
+    "name": "众马云/舒跃云/捷锐云",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 65001,
+    "enumName": "JingSuanPan",
+    "name": "鲸算盘",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 66001,
+    "enumName": "HaoJiYun",
+    "name": "好记云",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 67001,
+    "enumName": "JinZhangShi",
+    "name": "金账云/金账师",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 67002,
+    "enumName": "JinDieK3Cloud",
+    "name": "金蝶K/3 cloud",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 67003,
+    "enumName": "NingMengYun",
+    "name": "柠檬云",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 67004,
+    "enumName": "BuDaiYun",
+    "name": "布袋云",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "当前解析器要求科目、余额和凭证三类附件。",
+    "uncertain": false
+  },
+  {
+    "id": 68001,
+    "enumName": "YiQiJi",
+    "name": "易企记",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  },
+  {
+    "id": 69001,
+    "enumName": "WeiYi",
+    "name": "唯易",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "科目、余额和凭证均必填。",
+    "uncertain": false
+  },
+  {
+    "id": 70001,
+    "enumName": "TianPengYunZhang",
+    "name": "八戒财税-天蓬云账",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "subject",
+        "label": "科目数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "科目和凭证必填；余额/期初表可选。",
+    "uncertain": false
+  },
+  {
+    "id": 99999,
+    "enumName": "GeneralTemplate",
+    "name": "通用模板",
+    "files": [
+      {
+        "key": "trialbalance",
+        "label": "科目余额表 / 期初表",
+        "required": true,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      },
+      {
+        "key": "voucher",
+        "label": "凭证数据",
+        "required": false,
+        "extensions": [
+          ".xls",
+          ".xlsx"
+        ]
+      }
+    ],
+    "supportsAuxiliaryFiles": false,
+    "notes": "",
+    "uncertain": false
+  }
+]

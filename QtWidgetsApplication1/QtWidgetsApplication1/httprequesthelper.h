@@ -16,6 +16,9 @@ public:
     // 获取全局唯一的 QNetworkAccessManager
     static QNetworkAccessManager* networkManager();
 
+    // 柠檬云工具会话使用内部单点登录豁免标识，登录和后续业务请求均需携带。
+    static void setInternalSessionHeader(QNetworkRequest &request);
+
     // 将 QMap 参数拼接为 URL-encoded POST body（key1=val1&key2=val2）
     static QString buildPostData(const QMap<QString, QString> &params);
 

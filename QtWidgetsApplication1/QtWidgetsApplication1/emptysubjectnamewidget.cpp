@@ -1,3 +1,4 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "emptysubjectnamewidget.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
@@ -260,6 +261,7 @@ void EmptySubjectNameWidget::updateOutputDirLabel()
 
 void EmptySubjectNameWidget::setRunning(bool running, const QString &statusText)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     if (m_pPathConfig)
         m_pPathConfig->setEnabled(!running);
@@ -566,6 +568,11 @@ void EmptySubjectNameWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void EmptySubjectNameWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasZipFile(event->mimeData()))
     {
         event->ignore();
@@ -576,8 +583,16 @@ void EmptySubjectNameWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && isZipFile(url.toLocalFile()))
         {
-            event->acceptProposedAction();
-            processZip(url.toLocalFile());
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            refreshInputFiles();
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
+            processZip(inputPath);
             return;
         }
     }

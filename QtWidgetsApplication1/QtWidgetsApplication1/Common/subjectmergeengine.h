@@ -48,6 +48,8 @@ bool buildTree(const QJsonObject &root,
 QString suggestChildCode(const QList<SubjectMergeNode> &nodes,
                          const QString &parentCode);
 
+// Publishes result only after all writes and hierarchy checks succeed.
+// On failure root and the caller's existing result are unchanged.
 bool merge(const QJsonObject &root,
            const SubjectMergeRequest &request,
            SubjectMergeResult *result,

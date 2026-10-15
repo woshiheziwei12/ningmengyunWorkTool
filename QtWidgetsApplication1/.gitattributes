@@ -1,0 +1,7 @@
+# Keep upstream SDK/header bytes intact; their formatting is maintained upstream.
+QtWidgetsApplication1/ThirdParty/WebView2/include/WebView2.h -text -whitespace linguist-vendored
+QtWidgetsApplication1/ThirdParty/WebView2/LICENSE.txt -text -whitespace
+QtWidgetsApplication1/ThirdParty/WebView2/NOTICE.txt -text -whitespace
+QtWidgetsApplication1/ThirdParty/WebView2/x86/WebView2Loader.dll binary
+QtWidgetsApplication1/ThirdParty/zlib/*.h -text -whitespace linguist-vendored
+LemonChromeExtension/vendor/* linguist-vendored

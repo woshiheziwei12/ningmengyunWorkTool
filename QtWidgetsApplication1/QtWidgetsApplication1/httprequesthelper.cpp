@@ -14,15 +14,36 @@ public:
     QList<QNetworkCookie> cookiesForUrl(const QUrl &) const override { return {}; }
 };
 
+// 在发送边界统一设置，确保登录、JWT、工作台和账套请求不会遗漏。
+class LemonNetworkAccessManager : public QNetworkAccessManager
+{
+public:
+    using QNetworkAccessManager::QNetworkAccessManager;
+
+protected:
+    QNetworkReply *createRequest(Operation operation, const QNetworkRequest &request,
+                                 QIODevice *outgoingData = nullptr) override
+    {
+        QNetworkRequest internalRequest(request);
+        CHttpRequestHelper::setInternalSessionHeader(internalRequest);
+        return QNetworkAccessManager::createRequest(operation, internalRequest, outgoingData);
+    }
+};
+
 QNetworkAccessManager* CHttpRequestHelper::networkManager()
 {
     static QNetworkAccessManager *instance = nullptr;
     if (!instance)
     {
-        instance = new QNetworkAccessManager(qApp);
+        instance = new LemonNetworkAccessManager(qApp);
         instance->setCookieJar(new NoCookieJar(instance));
     }
     return instance;
+}
+
+void CHttpRequestHelper::setInternalSessionHeader(QNetworkRequest &request)
+{
+    request.setRawHeader("lmlimit", "internal");
 }
 
 QString CHttpRequestHelper::buildPostData(const QMap<QString, QString> &params)

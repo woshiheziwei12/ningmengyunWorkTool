@@ -36,28 +36,32 @@ QString cleanConfiguredPath(const QString &path, const QString &fallback)
 
 QString RepairPathSettings::inputDir()
 {
-    QSettings settings(QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
+    QSettings settings(QSettings::defaultFormat(), QSettings::UserScope,
+                       QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
     return cleanConfiguredPath(settings.value(QLatin1String(kInputDirKey)).toString(),
                                defaultInputDir());
 }
 
 QString RepairPathSettings::outputDir()
 {
-    QSettings settings(QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
+    QSettings settings(QSettings::defaultFormat(), QSettings::UserScope,
+                       QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
     return cleanConfiguredPath(settings.value(QLatin1String(kOutputDirKey)).toString(),
                                defaultOutputDir());
 }
 
 void RepairPathSettings::setInputDir(const QString &path)
 {
-    QSettings settings(QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
+    QSettings settings(QSettings::defaultFormat(), QSettings::UserScope,
+                       QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
     settings.setValue(QLatin1String(kInputDirKey), cleanConfiguredPath(path, defaultInputDir()));
     settings.sync();
 }
 
 void RepairPathSettings::setOutputDir(const QString &path)
 {
-    QSettings settings(QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
+    QSettings settings(QSettings::defaultFormat(), QSettings::UserScope,
+                       QStringLiteral("LemonCloud"), QStringLiteral("LemonWorkTool"));
     settings.setValue(QLatin1String(kOutputDirKey), cleanConfiguredPath(path, defaultOutputDir()));
     settings.sync();
 }
@@ -67,8 +71,10 @@ RepairPathConfigWidget::RepairPathConfigWidget(QWidget *parent)
       m_pInputLabel(new QLabel(this)),
       m_pOutputLabel(new QLabel(this))
 {
+    setObjectName(QStringLiteral("sharedPathCard"));
+    setAttribute(Qt::WA_StyledBackground, true);
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setContentsMargins(12, 10, 12, 10);
     rootLayout->setSpacing(6);
 
     QHBoxLayout *inputLayout = new QHBoxLayout();

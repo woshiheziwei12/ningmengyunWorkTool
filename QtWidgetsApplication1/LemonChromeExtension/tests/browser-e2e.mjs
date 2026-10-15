@@ -12,7 +12,7 @@ const { chromium } = require("playwright");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = path.join(root, "BuildCheck/UnifiedExtension/browser-e2e");
 const extension = path.join(root, "LemonChromeExtension/unpacked");
-const executable = path.join(root, "BuildCheck/BrowserLogin/Tests-Release/bin/BrowserLoginBridgeTests.exe");
+const executable = process.env.LEMON_BRIDGE_TEST_EXE || path.join(root, "BuildCheck/Repository/Tests-Release/bin/BrowserLoginBridgeTests.exe");
 await mkdir(work, { recursive: true });
 
 async function fixture(testEnvironment) {

@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file>Resource/import/subject-balance-software.json</file>
         <file>Resource/Images/close.png</file>
         <file>Resource/Images/close-hover.png</file>
         <file>Resource/Images/minimize.png</file>
@@ -17,6 +18,8 @@
         <file>Resource/Images/checked.png</file>
         <file>Resource/Images/unchecked.png</file>
         <file>Resource/qss/mystyle.css</file>
+        <file>Resource/qss/workspace.css</file>
+        <file>Resource/Images/workspace-chevron.svg</file>
         <file>Resource/http/Dev/Account.json</file>
         <file>Resource/http/Pro/Account.json</file>
         <file>Resource/http/Dev2/Account.json</file>

@@ -122,3 +122,5 @@ npm run package
 - [Chrome DNR API](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
 - [Chrome 扩展跨域请求](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)
 - [fflate 项目](https://github.com/101arrowz/fflate)
+
+隔离浏览器联调：先在项目根目录执行 `pwsh -File Tools/Build/build.ps1 -BridgeTests`，再安装开发用 Playwright/Chrome for Testing 并运行 `node LemonChromeExtension/tests/browser-e2e.mjs`。测试使用 `BuildCheck/Repository/Tests-Release/bin/BrowserLoginBridgeTests.exe`；可用 `LEMON_BRIDGE_TEST_EXE` 指定其他隔离产物。此联调依赖不进入扩展安装包。

@@ -1,7 +1,9 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "importpackageuploadwidget.h"
 #include "Common/globaldata.h"
 #include "Common/importpackagehistory.h"
 #include "Common/importpackageuploader.h"
+#include "Common/importerhostselector.h"
 #include "Common/logger.h"
 #include "httprequesthelper.h"
 #include "lemoncofighelper.h"
@@ -120,31 +122,7 @@ void ImportPackageUploadWidget::setupUi()
     m_pImporterHostCombo->setObjectName("comboProfessionalImporterHost");
     m_pImporterHostCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    const bool productionEnvironment = lemoncofighelper::CurrentHttpEnvironment()
-        .compare(QStringLiteral("Pro"), Qt::CaseInsensitive) == 0;
-    if (productionEnvironment)
-    {
-        lemoncofighelper configHelper;
-        const QString proHost = configHelper.GetAccountUrlByKey(lemoncofighelper::kProImporterApiHostKey).trimmed();
-        m_pImporterHostCombo->addItem(QStringLiteral("Pro - %1").arg(proHost), proHost);
-        m_pImporterHostCombo->addItem(QStringLiteral("PT - https://prodaozhangapipt.ningmengyun.com"),
-            QStringLiteral("https://prodaozhangapipt.ningmengyun.com"));
-        m_pImporterHostCombo->addItem(QStringLiteral("KF - https://kfprodaozhangapi.ningmengyun.com"),
-            QStringLiteral("https://kfprodaozhangapi.ningmengyun.com"));
-    }
-    else
-    {
-        m_pImporterHostCombo->addItem(QStringLiteral("Dev - https://proimportertest.ningmengyun.com"),
-            QStringLiteral("https://proimportertest.ningmengyun.com"));
-        m_pImporterHostCombo->addItem(QStringLiteral("Dev2 - https://proimportertest2.ningmengyun.com"),
-            QStringLiteral("https://proimportertest2.ningmengyun.com"));
-        m_pImporterHostCombo->addItem(QStringLiteral("Dev3 - https://proimportertest3.ningmengyun.com"),
-            QStringLiteral("https://proimportertest3.ningmengyun.com"));
-        lemoncofighelper configHelper;
-        const QString localHost = configHelper.GetAccountUrlByKey(lemoncofighelper::kProImporterApiHostKey).trimmed();
-        m_pImporterHostCombo->addItem(QStringLiteral("Local - %1").arg(localHost), localHost);
-        m_pImporterHostCombo->setCurrentIndex(3);
-    }
+    populateProfessionalImporterHosts(m_pImporterHostCombo);
 
     hostLayout->addWidget(hostLabel);
     hostLayout->addWidget(m_pImporterHostCombo, 1);
@@ -218,6 +196,7 @@ void ImportPackageUploadWidget::setupUi()
 
 void ImportPackageUploadWidget::setRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     m_pBtnBack->setEnabled(!running);
     m_pImporterHostCombo->setEnabled(!running && !m_resultQueryRunning);
@@ -228,6 +207,7 @@ void ImportPackageUploadWidget::setRunning(bool running, const QString &message)
 
 void ImportPackageUploadWidget::setQueryRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetQueryRunning", running);
     m_resultQueryRunning = running;
     m_pBtnQueryResult->setEnabled(!running);
     m_pBtnStopQuery->setEnabled(running);
@@ -789,6 +769,11 @@ void ImportPackageUploadWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void ImportPackageUploadWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasZipFile(event->mimeData()))
     {
         event->ignore();
@@ -799,9 +784,16 @@ void ImportPackageUploadWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && isZipFile(url.toLocalFile()))
         {
-            event->acceptProposedAction();
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
             AppLogger::operation(QStringLiteral("拖入上传压缩包 path=%1").arg(QDir::toNativeSeparators(url.toLocalFile())));
-            startUpload(url.toLocalFile());
+            startUpload(inputPath);
             return;
         }
     }

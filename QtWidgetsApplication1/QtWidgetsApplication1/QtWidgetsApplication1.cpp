@@ -1,18 +1,23 @@
+#include "BackupRestoreWidget.h"
+#include "vouchergroupnumwidget.h"
 #include "QtWidgetsApplication1.h"
 #include "functionselectwidget.h"
 #include "deleteaccountsetwidget.h"
 #include "backupaccountsetwidget.h"
 #include "repairaccountsetwidget.h"
 #include "jsonquerywidget.h"
+#include "wecomdocumentwidget.h"
 #include "subjectcodeconflictwidget.h"
 #include "subjectcodeseparatorwidget.h"
 #include "importpackageuploadwidget.h"
+#include "subjectbalanceimportwidget.h"
 #include "allownullaatypewidget.h"
 #include "emptysubjectnamewidget.h"
 #include "referenceaccountcoderepairwidget.h"
 #include "nonleafvoucherrepairwidget.h"
 #include "subjectmergewidget.h"
 #include "access2003converterwidget.h"
+#include "DatabaseCleanupWidget.h"
 #include "lemoncofighelper.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
@@ -36,6 +41,16 @@
 #include <QShowEvent>
 #include <QStyle>
 #include <QWindow>
+#include <QAbstractItemView>
+#include <QHeaderView>
+#include <QTableView>
+#include <QScrollArea>
+#include <QTimer>
+#include <QSystemTrayIcon>
+#include <QCloseEvent>
+#include <QMenu>
+#include <QPainter>
+#include "httprequesthelper.h"
 
 QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *parent)
     : QMainWindow(parent),
@@ -76,7 +91,11 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     ui.statusBar->hide();
 
     setWindowTitle(QStringLiteral("\u67e0\u6aac\u4e91\u5de5\u4f5c\u52a9\u624b"));
-    setWindowIcon(QIcon(":/Resource/Images/logo-reverse.png"));
+    const bool production = lemoncofighelper::CurrentHttpEnvironment() == "Pro";
+    m_environmentName = production ? QStringLiteral("正式环境") : QStringLiteral("测试环境");
+    setWindowTitle(windowTitle() + " · " + m_environmentName);
+    setProperty("environment", production ? "pro" : "test");
+    setupTray();
 
     QSize minimumWindowSize(800, 480);
     QSize preferredWindowSize(1240, 780);
@@ -95,17 +114,21 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     setMinimumSize(minimumWindowSize);
     resize(preferredWindowSize);
 
-    // 加载样式表
-    QString qss;
-    QFile file(":/Resource/qss/" + m_pGlobalData->m_strStyleName);
+    // The workspace theme is local to this window; login keeps its own stylesheet.
+    QFile file(":/Resource/qss/workspace.css");
     if (file.open(QFile::ReadOnly))
     {
-        qss = QLatin1String(file.readAll());
-        file.close();
-    }
-    if (!qss.isEmpty())
-    {
-        setStyleSheet(qss);
+        QString theme = QString::fromUtf8(file.readAll());
+        if (!production) {
+            // Replace the shared surface palette so every lazily-created tool inherits its environment.
+            theme.replace("#0d1424", "#201810").replace("#131c33", "#382417")
+                .replace("#0b1120", "#21160f").replace("#10192b", "#352419")
+                .replace("#172238", "#3b2b1e").replace("#1b2940", "#392b21")
+                .replace("#151f33", "#2b211a").replace("#1e3554", "#563c25")
+                .replace("#222b50", "#423022").replace("#342852", "#493125")
+                .replace("#1e293b", "#3b2b20");
+        }
+        setStyleSheet(theme);
     }
 
     // 主框架：固定导航侧栏 + 页面内容区。
@@ -166,6 +189,21 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     m_pBtnHome->setChecked(true);
     m_pBtnHome->setCursor(Qt::PointingHandCursor);
     sideBarLayout->addWidget(m_pBtnHome);
+    const QStringList symbols = {QStringLiteral("云"), QStringLiteral("科"), QStringLiteral("凭"),
+        QStringLiteral("包"), QStringLiteral("查")};
+    for (int category = 1; category <= 5; ++category) {
+        auto *button = new QPushButton(sideBarWidget);
+        button->setObjectName(QString("navCategory%1").arg(category));
+        button->setProperty("sideNav", true);
+        button->setProperty("navSymbol", symbols.at(category - 1));
+        button->setCheckable(true);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setToolTip(FunctionSelectWidget::categoryTitle(category));
+        button->setAccessibleName(button->toolTip());
+        m_categoryButtons.append(button);
+        sideBarLayout->addWidget(button);
+        connect(button, &QPushButton::clicked, this, [this, category]() { showCategory(category); });
+    }
     sideBarLayout->addStretch();
 
     m_pSessionCard = new QFrame(sideBarWidget);
@@ -201,6 +239,10 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     accountLabel->setObjectName("sessionAccount");
     accountLabel->setToolTip(displayName);
     sessionLayout->addWidget(accountLabel);
+    auto *refreshButton = new QPushButton(QStringLiteral("立即刷新授权"), sessionCard);
+    refreshButton->setObjectName("btnRefreshSession");
+    connect(refreshButton, &QPushButton::clicked, this, &QtWidgetsApplication1::refreshSessionRequested);
+    sessionLayout->addWidget(refreshButton);
     sideBarLayout->addWidget(sessionCard);
 
     m_pSideVersion = new QLabel(QStringLiteral("DESKTOP TOOL  ·  2026"), sideBarWidget);
@@ -227,16 +269,28 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     pageHeaderLayout->setSpacing(2);
     m_pHeaderTitle = new QLabel(topBarWidget);
     m_pHeaderTitle->setObjectName("headerTitle");
+    m_pHeaderTitle->setWordWrap(true);
     m_pHeaderSubtitle = new QLabel(topBarWidget);
     m_pHeaderSubtitle->setObjectName("headerSubtitle");
+    m_pHeaderSubtitle->setWordWrap(true);
     pageHeaderLayout->addWidget(m_pHeaderTitle);
     pageHeaderLayout->addWidget(m_pHeaderSubtitle);
-    topBar->addLayout(pageHeaderLayout);
-    topBar->addStretch();
+    topBar->addLayout(pageHeaderLayout, 1);
 
     m_pBtnOpenWebsite = new QPushButton(QStringLiteral("\u6253\u5f00\u67e0\u6aac\u4e91\u5b98\u7f51  \u2197"), topBarWidget);
     m_pBtnOpenWebsite->setObjectName("btnOpenWebsite");
     m_pBtnOpenWebsite->setCursor(Qt::PointingHandCursor);
+    auto *environmentButton = new QPushButton(m_environmentName, topBarWidget);
+    environmentButton->setObjectName("btnSwitchEnvironment");
+    environmentButton->setProperty("environment", production ? "pro" : "test");
+    environmentButton->setToolTip(QStringLiteral("使用已保存的账号密码切换环境"));
+    auto *environmentMenu = new QMenu(environmentButton);
+    auto *switchAction = environmentMenu->addAction(production ? QStringLiteral("切换到测试环境") : QStringLiteral("切换到正式环境"),
+        this, &QtWidgetsApplication1::requestEnvironmentSwitch);
+    switchAction->setObjectName("actionSwitchEnvironment");
+    environmentMenu->addAction(QStringLiteral("退出工具"), this, &QtWidgetsApplication1::requestExit);
+    environmentButton->setMenu(environmentMenu);
+    topBar->addWidget(environmentButton);
     topBar->addWidget(m_pBtnOpenWebsite);
 
     contentLayout->addWidget(topBarWidget);
@@ -259,12 +313,30 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     connect(m_pFunctionSelectWidget, &FunctionSelectWidget::functionSelected,
             this, &QtWidgetsApplication1::onFunctionSelected);
 
+    connect(m_pFunctionSelectWidget, &FunctionSelectWidget::categoryChanged, this, [this](int category) {
+        m_returnCategory = category;
+        updatePageHeader(FunctionSelectWidget::categoryTitle(category),
+            FunctionSelectWidget::categoryDescription(category), category == 0);
+        updateNavigation(category);
+    });
+    connect(m_pStackedWidget, &QStackedWidget::currentChanged, this, [this](int) {
+        prepareToolPage(m_pStackedWidget->currentWidget());
+    });
     updateResponsiveChrome();
     showFunctionSelect();
+    m_wecomLocalServer = new WecomLocalServer([this](const QDate &date, WecomLocalServer::Reply reply) {
+        if (!isEnabled() || QApplication::activeModalWidget()) {
+            reply(WecomLocalServer::error("busy", QStringLiteral("工具正在切换环境或等待对话框操作，请稍后重试。"))); return;
+        }
+        ensureWecomDocument();
+        m_pWecomDocumentWidget->readForAssistant(date, std::move(reply));
+    }, this);
+    m_wecomLocalServer->start();
 }
 
 QtWidgetsApplication1::~QtWidgetsApplication1()
 {
+    delete m_wecomLocalServer;
 }
 
 void QtWidgetsApplication1::resizeEvent(QResizeEvent *event)
@@ -344,10 +416,21 @@ void QtWidgetsApplication1::updateResponsiveChrome()
     if (!m_pSideBarWidget || !m_pSideBarLayout || !m_pBrandLayout || !m_pBtnHome)
         return;
 
-    const bool compactSidebar = width() < 720;
-    const bool shortWindow = height() < 430;
+    const bool compactSidebar = width() < 1040;
+    const bool shortWindow = height() < 680;
     const int sideBarWidth = compactSidebar ? 74 : 226;
     const int contentWidth = qMax(0, width() - sideBarWidth);
+    for (int index = 0; index < m_categoryButtons.size(); ++index) {
+        auto *button = m_categoryButtons.at(index);
+        button->setText(compactSidebar ? button->property("navSymbol").toString()
+            : QStringLiteral("%1   %2").arg(button->property("navSymbol").toString(),
+                FunctionSelectWidget::categoryTitle(index + 1)));
+        if (!button->property("compact").isValid() || button->property("compact").toBool() != compactSidebar) {
+            button->setProperty("compact", compactSidebar);
+            button->style()->unpolish(button);
+            button->style()->polish(button);
+        }
+    }
     const bool styleChanged = m_pBtnHome->property("compact").toBool() != compactSidebar;
 
     if (m_pSideBarWidget->width() != sideBarWidth)
@@ -395,10 +478,62 @@ void QtWidgetsApplication1::updateResponsiveChrome()
 
 void QtWidgetsApplication1::showFunctionSelect()
 {
-    AppLogger::operation(QStringLiteral("显示功能选择页"));
-    updatePageHeader(QStringLiteral("\u5de5\u4f5c\u53f0"),
-                     QStringLiteral("\u96c6\u4e2d\u7ba1\u7406\u8d26\u5957\u4e0e\u6570\u636e\u5904\u7406\u4efb\u52a1"), true);
+    showCategory(0);
+}
+
+void QtWidgetsApplication1::showCategory(int category)
+{
+    m_pFunctionSelectWidget->showCategory(category);
     m_pStackedWidget->setCurrentWidget(m_pFunctionSelectWidget);
+}
+
+void QtWidgetsApplication1::updateNavigation(int category)
+{
+    m_pBtnHome->setChecked(category == 0);
+    for (int index = 0; index < m_categoryButtons.size(); ++index)
+        m_categoryButtons.at(index)->setChecked(category == index + 1);
+}
+
+void QtWidgetsApplication1::prepareToolPage(QWidget *page)
+{
+    if (!page || page == m_pFunctionSelectWidget)
+        return;
+    if (!page->property("workspacePrepared").toBool()) {
+        page->setProperty("workspacePrepared", true);
+        for (auto *table : page->findChildren<QTableView*>()) {
+            table->setAlternatingRowColors(true);
+            table->setShowGrid(false);
+            table->verticalHeader()->setDefaultSectionSize(38);
+        }
+        for (auto *button : page->findChildren<QPushButton*>()) {
+            button->setCursor(Qt::PointingHandCursor);
+            if (button->objectName() == "btnBackToMain" || button->objectName() == "btnResultBack") {
+                button->setMaximumWidth(140);
+                button->setText(QStringLiteral("← 返回分类"));
+            }
+        }
+        for (auto *label : page->findChildren<QLabel*>())
+            if (label->objectName() == "labelRepairDropArea" || label->objectName() == "labelPageTitle")
+                label->setWordWrap(true);
+    }
+}
+
+void QtWidgetsApplication1::addToolPage(QWidget *page)
+{
+    auto *scroll = new QScrollArea(m_pStackedWidget);
+    scroll->setObjectName("toolPageScroll");
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    if (page->layout())
+        page->layout()->setSizeConstraint(QLayout::SetMinimumSize);
+    scroll->setWidget(page);
+    m_toolContainers.insert(page, scroll);
+    m_pStackedWidget->addWidget(scroll);
+}
+
+void QtWidgetsApplication1::showToolPage(QWidget *page)
+{
+    m_pStackedWidget->setCurrentWidget(m_toolContainers.value(page));
 }
 
 void QtWidgetsApplication1::updatePageHeader(const QString &title, const QString &subtitle, bool isHome)
@@ -419,11 +554,11 @@ void QtWidgetsApplication1::showDeleteAccountSet()
     if (!m_pDeleteAccountSetWidget)
     {
         m_pDeleteAccountSetWidget = new DeleteAccountSetWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pDeleteAccountSetWidget);
+        addToolPage(m_pDeleteAccountSetWidget);
         connect(m_pDeleteAccountSetWidget, &DeleteAccountSetWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pDeleteAccountSetWidget);
+    showToolPage(m_pDeleteAccountSetWidget);
     m_pDeleteAccountSetWidget->loadAccountSetList();
 }
 
@@ -435,11 +570,11 @@ void QtWidgetsApplication1::showBackupAccountSet()
     if (!m_pBackupAccountSetWidget)
     {
         m_pBackupAccountSetWidget = new BackupAccountSetWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pBackupAccountSetWidget);
+        addToolPage(m_pBackupAccountSetWidget);
         connect(m_pBackupAccountSetWidget, &BackupAccountSetWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pBackupAccountSetWidget);
+    showToolPage(m_pBackupAccountSetWidget);
     m_pBackupAccountSetWidget->loadAccountSetList();
 }
 
@@ -451,12 +586,12 @@ void QtWidgetsApplication1::showRepairAccountSet()
     if (!m_pRepairAccountSetWidget)
     {
         m_pRepairAccountSetWidget = new RepairAccountSetWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pRepairAccountSetWidget);
+        addToolPage(m_pRepairAccountSetWidget);
         connect(m_pRepairAccountSetWidget, &RepairAccountSetWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
     m_pRepairAccountSetWidget->setDateRepairOnly(false);
-    m_pStackedWidget->setCurrentWidget(m_pRepairAccountSetWidget);
+    showToolPage(m_pRepairAccountSetWidget);
     m_pRepairAccountSetWidget->loadAccountSetList();
 }
 
@@ -468,12 +603,12 @@ void QtWidgetsApplication1::showVoucherDateRepair()
     if (!m_pRepairAccountSetWidget)
     {
         m_pRepairAccountSetWidget = new RepairAccountSetWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pRepairAccountSetWidget);
+        addToolPage(m_pRepairAccountSetWidget);
         connect(m_pRepairAccountSetWidget, &RepairAccountSetWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
     m_pRepairAccountSetWidget->setDateRepairOnly(true);
-    m_pStackedWidget->setCurrentWidget(m_pRepairAccountSetWidget);
+    showToolPage(m_pRepairAccountSetWidget);
     m_pRepairAccountSetWidget->loadAccountSetList();
 }
 
@@ -485,12 +620,12 @@ void QtWidgetsApplication1::showSiblingNameRepair()
     if (!m_pRepairAccountSetWidget)
     {
         m_pRepairAccountSetWidget = new RepairAccountSetWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pRepairAccountSetWidget);
+        addToolPage(m_pRepairAccountSetWidget);
         connect(m_pRepairAccountSetWidget, &RepairAccountSetWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
     m_pRepairAccountSetWidget->setSiblingNameRepairOnly(true);
-    m_pStackedWidget->setCurrentWidget(m_pRepairAccountSetWidget);
+    showToolPage(m_pRepairAccountSetWidget);
     m_pRepairAccountSetWidget->loadAccountSetList();
 }
 
@@ -502,11 +637,11 @@ void QtWidgetsApplication1::showEmptySubjectNameRepair()
     if (!m_pEmptySubjectNameWidget)
     {
         m_pEmptySubjectNameWidget = new EmptySubjectNameWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pEmptySubjectNameWidget);
+        addToolPage(m_pEmptySubjectNameWidget);
         connect(m_pEmptySubjectNameWidget, &EmptySubjectNameWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pEmptySubjectNameWidget);
+    showToolPage(m_pEmptySubjectNameWidget);
     m_pEmptySubjectNameWidget->refreshInputFiles();
 }
 
@@ -518,12 +653,28 @@ void QtWidgetsApplication1::showJsonQuery()
     if (!m_pJsonQueryWidget)
     {
         m_pJsonQueryWidget = new JsonQueryWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pJsonQueryWidget);
+        addToolPage(m_pJsonQueryWidget);
         connect(m_pJsonQueryWidget, &JsonQueryWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pJsonQueryWidget);
+    showToolPage(m_pJsonQueryWidget);
     m_pJsonQueryWidget->loadFileList();
+}
+
+void QtWidgetsApplication1::showWecomDocument()
+{
+    updatePageHeader(QStringLiteral("企业微信文档读取"), QStringLiteral("扫码登录，获取今天及之后的工作表并导出 JSON"));
+    ensureWecomDocument();
+    showToolPage(m_pWecomDocumentWidget);
+}
+void QtWidgetsApplication1::ensureWecomDocument()
+{
+    if (!m_pWecomDocumentWidget) {
+        m_pWecomDocumentWidget = new WecomDocumentWidget(this);
+        addToolPage(m_pWecomDocumentWidget);
+        connect(m_pWecomDocumentWidget, &WecomDocumentWidget::backToMain, this, &QtWidgetsApplication1::onBackToMain);
+    }
+    if (m_wecomLocalServer) m_pWecomDocumentWidget->setAssistantStatus(m_wecomLocalServer->statusText());
 }
 
 void QtWidgetsApplication1::showSubjectCodeConflict()
@@ -534,11 +685,11 @@ void QtWidgetsApplication1::showSubjectCodeConflict()
     if (!m_pSubjectCodeConflictWidget)
     {
         m_pSubjectCodeConflictWidget = new SubjectCodeConflictWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pSubjectCodeConflictWidget);
+        addToolPage(m_pSubjectCodeConflictWidget);
         connect(m_pSubjectCodeConflictWidget, &SubjectCodeConflictWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pSubjectCodeConflictWidget);
+    showToolPage(m_pSubjectCodeConflictWidget);
     m_pSubjectCodeConflictWidget->loadInputDirectory();
 }
 
@@ -550,12 +701,25 @@ void QtWidgetsApplication1::showSubjectCodeSeparator()
     if (!m_pSubjectCodeSeparatorWidget)
     {
         m_pSubjectCodeSeparatorWidget = new SubjectCodeSeparatorWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pSubjectCodeSeparatorWidget);
+        addToolPage(m_pSubjectCodeSeparatorWidget);
         connect(m_pSubjectCodeSeparatorWidget, &SubjectCodeSeparatorWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pSubjectCodeSeparatorWidget);
+    showToolPage(m_pSubjectCodeSeparatorWidget);
     m_pSubjectCodeSeparatorWidget->refreshInputFiles();
+}
+
+void QtWidgetsApplication1::showSubjectBalanceImport()
+{
+    updatePageHeader(QStringLiteral("科目余额表导账"), QStringLiteral("上传原始表格，新建企业专业版账套并跟踪结果"));
+    if (!m_pSubjectBalanceImportWidget) {
+        m_pSubjectBalanceImportWidget = new SubjectBalanceImportWidget(m_pGlobalData, this);
+        addToolPage(m_pSubjectBalanceImportWidget);
+        connect(m_pSubjectBalanceImportWidget, &SubjectBalanceImportWidget::backToMain,
+                this, &QtWidgetsApplication1::onBackToMain);
+    }
+    showToolPage(m_pSubjectBalanceImportWidget);
+    m_pSubjectBalanceImportWidget->reloadHistory();
 }
 
 void QtWidgetsApplication1::showImportPackageUpload()
@@ -566,11 +730,11 @@ void QtWidgetsApplication1::showImportPackageUpload()
     if (!m_pImportPackageUploadWidget)
     {
         m_pImportPackageUploadWidget = new ImportPackageUploadWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pImportPackageUploadWidget);
+        addToolPage(m_pImportPackageUploadWidget);
         connect(m_pImportPackageUploadWidget, &ImportPackageUploadWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pImportPackageUploadWidget);
+    showToolPage(m_pImportPackageUploadWidget);
     m_pImportPackageUploadWidget->reloadImportHistory();
 }
 
@@ -582,11 +746,11 @@ void QtWidgetsApplication1::showAllowNullAaType()
     if (!m_pAllowNullAaTypeWidget)
     {
         m_pAllowNullAaTypeWidget = new AllowNullAaTypeWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pAllowNullAaTypeWidget);
+        addToolPage(m_pAllowNullAaTypeWidget);
         connect(m_pAllowNullAaTypeWidget, &AllowNullAaTypeWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pAllowNullAaTypeWidget);
+    showToolPage(m_pAllowNullAaTypeWidget);
     m_pAllowNullAaTypeWidget->refreshInputFiles();
 }
 
@@ -598,11 +762,11 @@ void QtWidgetsApplication1::showReferenceAccountCodeRepair()
     if (!m_pReferenceAccountCodeRepairWidget)
     {
         m_pReferenceAccountCodeRepairWidget = new ReferenceAccountCodeRepairWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pReferenceAccountCodeRepairWidget);
+        addToolPage(m_pReferenceAccountCodeRepairWidget);
         connect(m_pReferenceAccountCodeRepairWidget, &ReferenceAccountCodeRepairWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pReferenceAccountCodeRepairWidget);
+    showToolPage(m_pReferenceAccountCodeRepairWidget);
     m_pReferenceAccountCodeRepairWidget->refreshInputFiles();
 }
 
@@ -614,11 +778,11 @@ void QtWidgetsApplication1::showNonLeafVoucherRepair()
     if (!m_pNonLeafVoucherRepairWidget)
     {
         m_pNonLeafVoucherRepairWidget = new NonLeafVoucherRepairWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pNonLeafVoucherRepairWidget);
+        addToolPage(m_pNonLeafVoucherRepairWidget);
         connect(m_pNonLeafVoucherRepairWidget, &NonLeafVoucherRepairWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pNonLeafVoucherRepairWidget);
+    showToolPage(m_pNonLeafVoucherRepairWidget);
     m_pNonLeafVoucherRepairWidget->refreshInputFiles();
 }
 
@@ -631,11 +795,11 @@ void QtWidgetsApplication1::showTrimSubjectName()
     {
         m_pTrimSubjectNameWidget = new EmptySubjectNameWidget(
             m_pGlobalData, this, EmptySubjectNameWidget::TrimNameWhitespace);
-        m_pStackedWidget->addWidget(m_pTrimSubjectNameWidget);
+        addToolPage(m_pTrimSubjectNameWidget);
         connect(m_pTrimSubjectNameWidget, &EmptySubjectNameWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pTrimSubjectNameWidget);
+    showToolPage(m_pTrimSubjectNameWidget);
     m_pTrimSubjectNameWidget->refreshInputFiles();
 }
 
@@ -647,11 +811,11 @@ void QtWidgetsApplication1::showSubjectMerge()
     if (!m_pSubjectMergeWidget)
     {
         m_pSubjectMergeWidget = new SubjectMergeWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pSubjectMergeWidget);
+        addToolPage(m_pSubjectMergeWidget);
         connect(m_pSubjectMergeWidget, &SubjectMergeWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pSubjectMergeWidget);
+    showToolPage(m_pSubjectMergeWidget);
     m_pSubjectMergeWidget->refreshInputFiles();
 }
 
@@ -663,21 +827,65 @@ void QtWidgetsApplication1::showAccess2003Converter()
     if (!m_pAccess2003ConverterWidget)
     {
         m_pAccess2003ConverterWidget = new Access2003ConverterWidget(m_pGlobalData, this);
-        m_pStackedWidget->addWidget(m_pAccess2003ConverterWidget);
+        addToolPage(m_pAccess2003ConverterWidget);
         connect(m_pAccess2003ConverterWidget, &Access2003ConverterWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    m_pStackedWidget->setCurrentWidget(m_pAccess2003ConverterWidget);
+    showToolPage(m_pAccess2003ConverterWidget);
+}
+
+void QtWidgetsApplication1::showDatabaseCleanup()
+{
+    updatePageHeader(QString::fromUtf8(u8"选择删除数据库"),
+                     QString::fromUtf8(u8"勾选要删除的用户数据库，支持全选，保留系统数据库"));
+    if (!m_pDatabaseCleanupWidget) {
+        m_pDatabaseCleanupWidget = new DatabaseCleanupWidget(this);
+        addToolPage(m_pDatabaseCleanupWidget);
+        connect(m_pDatabaseCleanupWidget, &DatabaseCleanupWidget::backToMain,
+                this, &QtWidgetsApplication1::onBackToMain);
+    }
+    showToolPage(m_pDatabaseCleanupWidget);
+}
+
+void QtWidgetsApplication1::showBackupRestore(int softwareId)
+{
+    updatePageHeader(QStringLiteral("恢复备份包"),
+        QStringLiteral("选择备份来源软件，恢复到扫描发现的本地实例或 211"));
+    if (!m_pBackupRestoreWidget) {
+        m_pBackupRestoreWidget = new BackupRestoreWidget(this);
+        addToolPage(m_pBackupRestoreWidget);
+        connect(m_pBackupRestoreWidget, &BackupRestoreWidget::backToMain,
+            this, &QtWidgetsApplication1::onBackToMain);
+    }
+    if (softwareId) m_pBackupRestoreWidget->selectSoftware(softwareId);
+    showToolPage(m_pBackupRestoreWidget);
 }
 
 void QtWidgetsApplication1::onBackToMain()
 {
-    showFunctionSelect();
+    showCategory(m_returnCategory);
+}
+
+void QtWidgetsApplication1::showVoucherGroupNumRepair()
+{
+    updatePageHeader(QStringLiteral("凭证编号修复"), QStringLiteral("将小数凭证编号转为整数，并展示编号调整明细"));
+    if (!m_pVoucherGroupNumWidget) {
+        m_pVoucherGroupNumWidget = new VoucherGroupNumWidget(m_pGlobalData, this);
+        addToolPage(m_pVoucherGroupNumWidget);
+        connect(m_pVoucherGroupNumWidget, &VoucherGroupNumWidget::backToMain,
+            this, &QtWidgetsApplication1::onBackToMain);
+    }
+    showToolPage(m_pVoucherGroupNumWidget);
+    m_pVoucherGroupNumWidget->refreshInputFiles();
 }
 
 void QtWidgetsApplication1::onFunctionSelected(int functionId)
 {
     AppLogger::operation(QStringLiteral("选择功能 functionId=%1").arg(functionId));
+    if (functionId != 4 && functionId != 7) {
+        m_returnCategory = FunctionSelectWidget::categoryForFunction(functionId);
+        updateNavigation(m_returnCategory);
+    }
     switch (functionId)
     {
     case 1:
@@ -704,6 +912,9 @@ void QtWidgetsApplication1::onFunctionSelected(int functionId)
         break;
     case 8:
         showJsonQuery();
+        break;
+    case 28:
+        showWecomDocument();
         break;
     case 9:
         showSubjectCodeSeparator();
@@ -734,6 +945,33 @@ void QtWidgetsApplication1::onFunctionSelected(int functionId)
         break;
     case 18:
         showAccess2003Converter();
+        break;
+    case 19:
+        showBackupRestore(19);
+        break;
+    case 20:
+        showBackupRestore();
+        break;
+    case 24:
+        showSubjectBalanceImport();
+        break;
+    case 23:
+        showVoucherGroupNumRepair();
+        break;
+    case 27:
+        showBackupRestore(27);
+        break;
+    case 26:
+        showBackupRestore(26);
+        break;
+    case 25:
+        showBackupRestore(25);
+        break;
+    case 22:
+        showBackupRestore(22);
+        break;
+    case 21:
+        showDatabaseCleanup();
         break;
     }
 }
@@ -792,3 +1030,110 @@ void QtWidgetsApplication1::onCopyNingMengCookie()
                              QStringLiteral("ningmengcookie \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f\uff1a\n") + cookie);
 }
 
+
+void QtWidgetsApplication1::setupTray()
+{
+    const bool production = lemoncofighelper::CurrentHttpEnvironment() == "Pro";
+    QIcon icon;
+    for (int size : {16, 24, 32, 48, 64}) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(production ? "#287de0" : "#ed922b"));
+        if (production) painter.drawEllipse(QRectF(1, 1, size - 2, size - 2));
+        else painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), size / 5.0, size / 5.0);
+        QFont font("Arial"); font.setBold(true); font.setPixelSize(size * 0.65);
+        painter.setFont(font);
+        painter.setPen(production ? Qt::white : Qt::black);
+        painter.drawText(pixmap.rect(), Qt::AlignCenter, production ? "P" : "T");
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    setWindowIcon(icon);
+    m_trayIcon = new QSystemTrayIcon(icon, this);
+    m_trayIcon->setToolTip(QStringLiteral("柠檬云工作助手 · ") + m_environmentName);
+    auto *menu = new QMenu(this);
+    menu->addAction(QStringLiteral("打开主窗口"), this, &QtWidgetsApplication1::restoreFromTray);
+    menu->addAction(QStringLiteral("立即刷新授权"), this, &QtWidgetsApplication1::refreshSessionRequested);
+    menu->addAction(production ? QStringLiteral("切换到测试环境") : QStringLiteral("切换到正式环境"),
+        this, &QtWidgetsApplication1::requestEnvironmentSwitch);
+    menu->addSeparator();
+    menu->addAction(QStringLiteral("退出工具"), this, &QtWidgetsApplication1::requestExit);
+    m_trayIcon->setContextMenu(menu);
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) restoreFromTray();
+    });
+    m_trayIcon->show();
+}
+
+void QtWidgetsApplication1::closeEvent(QCloseEvent *event)
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        event->ignore();
+        showMinimized();
+        return;
+    }
+    event->ignore();
+    m_wasMaximized = isMaximized();
+    hide();
+    if (!m_trayHintShown) {
+        m_trayHintShown = true;
+        m_trayIcon->showMessage(QStringLiteral("已在后台运行 · ") + m_environmentName,
+            QStringLiteral("点击托盘图标恢复窗口；右键菜单可切换环境或退出。授权将继续自动刷新。"));
+    }
+}
+
+void QtWidgetsApplication1::restoreFromTray()
+{
+    if (m_wasMaximized) showMaximized(); else showNormal();
+    raise();
+    activateWindow();
+}
+
+bool QtWidgetsApplication1::hasActiveTasks() const
+{
+    for (auto *object : findChildren<QObject*>()) {
+        for (const auto &name : object->dynamicPropertyNames())
+            if (name.startsWith("sessionBusy") && object->property(name.constData()).toBool()) return true;
+    }
+    for (auto *reply : CHttpRequestHelper::networkManager()->findChildren<QNetworkReply*>())
+        if (!reply->isFinished()) return true;
+    return false;
+}
+
+void QtWidgetsApplication1::requestEnvironmentSwitch()
+{
+    if (!isEnabled() || QApplication::activeModalWidget()) return;
+    if (hasActiveTasks()) {
+        restoreFromTray();
+        QMessageBox::information(this, QStringLiteral("任务进行中"),
+            QStringLiteral("请先完成或停止当前任务，再切换环境。"));
+        return;
+    }
+    emit switchEnvironmentRequested();
+}
+
+void QtWidgetsApplication1::requestExit()
+{
+    if (hasActiveTasks() || QApplication::activeModalWidget()) {
+        restoreFromTray();
+        QMessageBox::information(this, QStringLiteral("任务进行中"), QStringLiteral("请先完成或停止当前任务，再退出工具。"));
+        return;
+    }
+    qApp->quit();
+}
+
+void QtWidgetsApplication1::updateSessionStatus(const QString &message, bool warning)
+{
+    if (auto *label = findChild<QLabel*>("sessionStatusText")) {
+        label->setText(warning ? QStringLiteral("授权需要关注") : QStringLiteral("授权自动续期"));
+        label->setToolTip(message);
+    }
+    if (auto *card = findChild<QFrame*>("sideSessionCard")) card->setToolTip(message);
+    if (warning && !m_sessionWarning)
+        m_trayIcon->showMessage(QStringLiteral("登录授权 · ") + m_environmentName, message, QSystemTrayIcon::Warning);
+    m_sessionWarning = warning;
+    m_trayIcon->setToolTip(QStringLiteral("柠檬云工作助手 · ") + m_environmentName + "\n" + message);
+}

@@ -1,4 +1,5 @@
-#include "jsonquerywidget.h"
+﻿#include "jsonquerywidget.h"
+#include "Common/repairinputfileutils.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
 
@@ -1012,22 +1013,26 @@ void JsonQueryWidget::setupUi()
     m_pSupplierCodeEdit->setPlaceholderText(QStringLiteral("供应商编码"));
     m_pSupplierCodeEdit->setMaximumWidth(120);
     filterLayout->addWidget(m_pSupplierCodeEdit);
+    layout->addLayout(filterLayout);
+
+    QHBoxLayout *keywordLayout = new QHBoxLayout();
+    keywordLayout->setSpacing(8);
 
     m_pKeywordEdit = new QLineEdit(this);
     m_pKeywordEdit->setPlaceholderText(QStringLiteral("摘要/名称/任意字段"));
-    filterLayout->addWidget(m_pKeywordEdit);
+    keywordLayout->addWidget(m_pKeywordEdit, 1);
 
     m_pBtnSearch = new QPushButton(QStringLiteral("查询"), this);
     m_pBtnSearch->setObjectName("btnSearchJsonData");
     m_pBtnSearch->setMaximumWidth(80);
-    filterLayout->addWidget(m_pBtnSearch);
+    keywordLayout->addWidget(m_pBtnSearch);
 
     m_pBtnClear = new QPushButton(QStringLiteral("清空"), this);
     m_pBtnClear->setObjectName("btnClearJsonFilters");
     m_pBtnClear->setProperty("grayButton", true);
     m_pBtnClear->setMaximumWidth(80);
-    filterLayout->addWidget(m_pBtnClear);
-    layout->addLayout(filterLayout);
+    keywordLayout->addWidget(m_pBtnClear);
+    layout->addLayout(keywordLayout);
 
     m_pResultLabel = new QLabel(QStringLiteral("请先导入或选择 JSON"), this);
     m_pResultLabel->setWordWrap(true);
@@ -1376,6 +1381,7 @@ void JsonQueryWidget::startQuery()
 
 void JsonQueryWidget::setFileOperationRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetFileOperationRunning", running);
     bool hasValidFile = false;
     for (const JsonQueryFileInfo &info : m_fileList)
     {
@@ -1398,6 +1404,7 @@ void JsonQueryWidget::setFileOperationRunning(bool running, const QString &messa
 
 void JsonQueryWidget::setQueryOperationRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetQueryOperationRunning", running);
     m_pBtnSearch->setEnabled(!running && m_currentDoc.isObject());
     m_pBtnClear->setEnabled(!running && m_currentDoc.isObject());
     m_pDatasetCombo->setEnabled(!running && m_currentDoc.isObject());
@@ -1465,7 +1472,7 @@ void JsonQueryWidget::fillFileTable()
         m_pFileTable->setItem(i, 4, new QTableWidgetItem(QDir::toNativeSeparators(rootDir.relativeFilePath(info.jsonPath))));
 
         QTableWidgetItem *statusItem = new QTableWidgetItem(info.status);
-        statusItem->setForeground(info.valid ? QColor(1, 130, 72) : QColor(220, 53, 69));
+        statusItem->setForeground(info.valid ? QColor(110, 224, 177) : QColor(255, 139, 162));
         m_pFileTable->setItem(i, 5, statusItem);
 
         for (int col = 0; col < m_pFileTable->columnCount(); ++col)
@@ -2433,6 +2440,11 @@ void JsonQueryWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void JsonQueryWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasSupportedDataFile(event->mimeData()))
     {
         event->ignore();
@@ -2445,10 +2457,20 @@ void JsonQueryWidget::dropEvent(QDropEvent *event)
         if (!url.isLocalFile())
             continue;
 
-        filePaths.append(url.toLocalFile());
+        if (!isSupportedDataFile(url.toLocalFile()))
+            continue;
+        const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+        if (!inputPath.isEmpty())
+            filePaths.append(inputPath);
     }
 
-    event->acceptProposedAction();
+    if (filePaths.isEmpty())
+    {
+        event->ignore();
+        return;
+    }
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
     AppLogger::operation(QStringLiteral("JSON 查询拖入文件 files=%1").arg(filePaths.join("|")));
     startImportFiles(filePaths);
 }

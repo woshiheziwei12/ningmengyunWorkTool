@@ -1,10 +1,47 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Common\BrowserLoginBridge.cpp" />
     <ClInclude Include="Common\BrowserLoginBridge.h" />
+    <QtMoc Include="wecomdocumentwidget.h" />
+    <QtMoc Include="Common\WecomBrowser.h" />
+    <QtMoc Include="Common\WecomDocumentReader.h" />
+    <QtMoc Include="Common\WecomLocalServer.h" />
+    <ClCompile Include="Common\WecomLocalServer.cpp" />
+    <ClInclude Include="Common\WecomDocumentData.h" />
+    <ClInclude Include="Common\WecomSessionStore.h" />
+    <ClCompile Include="Common\WecomSessionStore.cpp" />
+    <ClCompile Include="wecomdocumentwidget.cpp" />
+    <ClCompile Include="Common\WecomBrowser.cpp" />
+    <ClCompile Include="Common\WecomDocumentData.cpp" />
+    <ClCompile Include="Common\WecomDocumentReader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Common\RestorePreferences.h" />
+    <ClInclude Include="Common\SqlRestoreRouting.h" />
+    <ClInclude Include="Common\SqlBackupCompatibility.h" />
+    <ClInclude Include="Common\SqlServer211.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="BackupRestoreWidget.h" />
+    <ClCompile Include="BackupRestoreWidget.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Common\subjectbalancefiles.cpp" />
+    <ClInclude Include="Common\subjectbalancefiles.h" />
+    <QtMoc Include="subjectbalanceimportwidget.h" />
+    <QtMoc Include="Common\subjectbalanceimport.h" />
+    <ClCompile Include="subjectbalanceimportwidget.cpp" />
+    <ClCompile Include="Common\subjectbalanceimport.cpp" />
+    <ClInclude Include="Common\importerhostselector.h" />
+    <ClInclude Include="Common\sessiontaskguard.h" />
+    <None Include="Resource\import\subject-balance-software.json" />
+    <QtMoc Include="vouchergroupnumwidget.h" />
+    <ClCompile Include="vouchergroupnumwidget.cpp" />
+    <ClCompile Include="Common\vouchergroupnumrepair.cpp" />
+    <ClInclude Include="Common\vouchergroupnumrepair.h" />
+    <ClCompile Include="Common\RemoteFileTransfer.cpp" />
+    <ClInclude Include="Common\RemoteFileTransfer.h" />
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -138,6 +175,9 @@
     <ClInclude Include="Common\repairfilenameutils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Common\repairinputfileutils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Common\repairpathconfigwidget.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -168,5 +208,45 @@
       <Filter>Resource Files</Filter>
     </None>
 
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="SudaBackupWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <ClCompile Include="SudaBackupWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\SudaBackupUnpacker.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="Common\SudaBackupUnpacker.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="ThirdParty\zlib\zlib.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="ThirdParty\zlib\zconf.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="T3RestoreWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <QtMoc Include="DatabaseCleanupWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <ClCompile Include="DatabaseCleanupWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\DatabaseCleaner.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="Common\DatabaseCleaner.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Common\LocalSqlInstances.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Common\SqlTargetSelector.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="T3RestoreWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\T3BackupRestorer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="Common\T3BackupRestorer.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="TPlusRestoreWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <QtMoc Include="KisProRestoreWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <QtMoc Include="InspurRestoreWidget.h"><Filter>Header Files</Filter></QtMoc>
+    <ClInclude Include="Common\TPlusBackupRestorer.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Common\KisProBackupRestorer.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Common\InspurBackupRestorer.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="TPlusRestoreWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="KisProRestoreWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="InspurRestoreWidget.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\TPlusBackupRestorer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\KisProBackupRestorer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Common\InspurBackupRestorer.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="XinZhongDaRestoreWidget.h" />
+    <ClCompile Include="XinZhongDaRestoreWidget.cpp" />
+    <ClInclude Include="Common\XinZhongDaBackupRestorer.h" />
+    <ClCompile Include="Common\XinZhongDaBackupRestorer.cpp" />
   </ItemGroup>
 </Project>

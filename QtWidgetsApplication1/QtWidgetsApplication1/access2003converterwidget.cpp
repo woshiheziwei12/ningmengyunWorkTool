@@ -1,7 +1,8 @@
-#include "access2003converterwidget.h"
+﻿#include "access2003converterwidget.h"
 
 #include "Common/access2003converter.h"
 #include "Common/logger.h"
+#include "Common/repairinputfileutils.h"
 
 #include <QApplication>
 #include <QDir>
@@ -279,7 +280,10 @@ void Access2003ConverterWidget::addDroppedPath(const QString &path)
     }
     else if (isSupportedFile(path))
     {
-        addPaths(QStringList() << path);
+        const QString inputPath = RepairInputFileUtils::copyDroppedFile(path, this);
+        if (inputPath.isEmpty())
+            return;
+        addPaths(QStringList() << inputPath);
         setSuggestedOutputDirectory(info.absolutePath());
     }
 }
@@ -314,6 +318,7 @@ void Access2003ConverterWidget::refreshFileList()
 
 void Access2003ConverterWidget::setRunning(bool running)
 {
+    setProperty("sessionBusysetRunning", running);
     m_running = running;
     m_pSelectFilesButton->setEnabled(!running);
     m_pSelectDirectoryButton->setEnabled(!running);
@@ -448,6 +453,11 @@ void Access2003ConverterWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void Access2003ConverterWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (m_running || !hasSupportedDrop(event->mimeData()))
     {
         event->ignore();
@@ -458,5 +468,6 @@ void Access2003ConverterWidget::dropEvent(QDropEvent *event)
         if (url.isLocalFile())
             addDroppedPath(url.toLocalFile());
     }
-    event->acceptProposedAction();
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
 }

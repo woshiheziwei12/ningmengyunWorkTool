@@ -1,6 +1,7 @@
 #include "subjectmergeengine.h"
 
 #include <algorithm>
+#include <new>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
@@ -10,6 +11,33 @@
 
 namespace
 {
+struct JsonStorageError {};
+
+void checkedInsert(QJsonObject *object, const QString &key, const QJsonValue &value)
+{
+    object->insert(key, value);
+    // Qt 5.12 may only warn and return without writing when its JSON limit is hit.
+    if (object->value(key) != value)
+        throw JsonStorageError();
+}
+
+QJsonObject packedObject(const QJsonObject &source)
+{
+    QJsonObject result;
+    for (auto it = source.constBegin(); it != source.constEnd(); ++it)
+        checkedInsert(&result, it.key(), it.value());
+    return result;
+}
+
+void appendRecord(QJsonArray *array, const QJsonObject &record)
+{
+    const QJsonObject packed = packedObject(record);
+    const int previousSize = array->size();
+    array->append(packed);
+    if (array->size() != previousSize + 1 || array->last().toObject() != packed)
+        throw JsonStorageError();
+}
+
 struct MutableNode
 {
     QJsonObject account;
@@ -282,7 +310,7 @@ void addBalanceAmounts(QJsonObject *target, const QJsonObject &source)
         if (!isSummableBalanceField(it.key()) || !it.value().isDouble())
             continue;
         const double previous = target->value(it.key()).toDouble();
-        target->insert(it.key(), previous + it.value().toDouble());
+        checkedInsert(target, it.key(), previous + it.value().toDouble());
     }
 }
 
@@ -383,7 +411,8 @@ public:
         if (!rewriteBalances(errorMessage) || !rewriteVouchers(errorMessage))
             return false;
 
-        m_result->root = m_root;
+        if (!assembleResult(errorMessage))
+            return false;
         m_result->codeMapping = m_mapping;
         m_result->logs.append(QStringLiteral("合并 %1 个同级科目，目标：%2 %3")
             .arg(sourceCodes.size()).arg(m_nodes.at(targetIndex).code,
@@ -451,9 +480,9 @@ private:
         node.parentIndex = parentIndex;
         node.direction = direction;
         node.originalIndex = m_nodes.size();
-        node.account.insert(QStringLiteral("AcctCode"), code);
-        node.account.insert(QStringLiteral("AcctName"), name);
-        node.account.insert(QStringLiteral("AcctDC"), direction);
+        checkedInsert(&node.account, QStringLiteral("AcctCode"), code);
+        checkedInsert(&node.account, QStringLiteral("AcctName"), name);
+        checkedInsert(&node.account, QStringLiteral("AcctDC"), direction);
         const int index = m_nodes.size();
         m_nodes.append(node);
         if (parentIndex >= 0)
@@ -652,35 +681,35 @@ private:
         {
             MutableNode &node = m_nodes[index];
             QJsonObject account = node.account;
-            account.insert(QStringLiteral("AcctCode"), node.code);
-            account.insert(QStringLiteral("AcctName"), node.name);
-            account.insert(QStringLiteral("AcctDC"), node.direction);
-            account.insert(QStringLiteral("AcctLevel"), nodeLevel(m_nodes, index));
-            account.insert(QStringLiteral("AcctIsDetail"), node.children.isEmpty() ? 1 : 0);
+            checkedInsert(&account, QStringLiteral("AcctCode"), node.code);
+            checkedInsert(&account, QStringLiteral("AcctName"), node.name);
+            checkedInsert(&account, QStringLiteral("AcctDC"), node.direction);
+            checkedInsert(&account, QStringLiteral("AcctLevel"), nodeLevel(m_nodes, index));
+            checkedInsert(&account, QStringLiteral("AcctIsDetail"), node.children.isEmpty() ? 1 : 0);
             if (node.parentIndex >= 0)
-                account.insert(QStringLiteral("AcctParent"), m_nodes.at(node.parentIndex).code);
+                checkedInsert(&account, QStringLiteral("AcctParent"), m_nodes.at(node.parentIndex).code);
             else
             {
                 const QString originalParent = normalizedCode(account.value(QStringLiteral("AcctParent")));
-                account.insert(QStringLiteral("AcctParent"),
+                checkedInsert(&account, QStringLiteral("AcctParent"),
                                originalParent == QStringLiteral("0")
                                    ? QStringLiteral("0") : QString());
             }
 
             if (!normalizedCode(account.value(QStringLiteral("AcctFullCode"))).isEmpty())
-                account.insert(QStringLiteral("AcctFullCode"), node.code);
+                checkedInsert(&account, QStringLiteral("AcctFullCode"), node.code);
             if (!normalizedCode(account.value(QStringLiteral("AcctRoot"))).isEmpty())
             {
                 int rootIndex = index;
                 while (m_nodes.at(rootIndex).parentIndex >= 0)
                     rootIndex = m_nodes.at(rootIndex).parentIndex;
-                account.insert(QStringLiteral("AcctRoot"), m_nodes.at(rootIndex).code);
+                checkedInsert(&account, QStringLiteral("AcctRoot"), m_nodes.at(rootIndex).code);
             }
             node.account = account;
             m_directionsByCode.insert(node.code, node.direction);
-            accounts.append(account);
+            appendRecord(&accounts, account);
         }
-        m_root.insert(QStringLiteral("GLAccountList"), accounts);
+        m_accounts = accounts;
     }
 
     QJsonObject convertedBalance(const QJsonObject &source,
@@ -690,15 +719,17 @@ private:
     {
         QJsonObject converted = source;
         const QString oldCode = normalizedCode(source.value(QStringLiteral("AcctCode")));
-        converted.insert(QStringLiteral("AcctCode"), targetCode);
+        checkedInsert(&converted, QStringLiteral("AcctCode"), targetCode);
         if (countChange && oldCode != targetCode)
             ++m_result->changedBalanceCount;
         if (m_originalDirections.value(oldCode, targetDirection) != targetDirection)
         {
-            for (auto it = converted.begin(); it != converted.end(); ++it)
+            const QStringList keys = converted.keys();
+            for (const QString &key : keys)
             {
-                if (isOpeningAmountField(it.key()) && it.value().isDouble())
-                    it.value() = -it.value().toDouble();
+                const QJsonValue value = converted.value(key);
+                if (isOpeningAmountField(key) && value.isDouble())
+                    checkedInsert(&converted, key, -value.toDouble());
             }
             ++m_result->reversedOpeningCount;
         }
@@ -721,7 +752,7 @@ private:
                 affectedTargets.insert(contribution.code);
         }
 
-        QJsonArray output;
+        QVector<QJsonObject> output;
         QMap<QString, int> outputIndex;
         const QJsonArray balances = m_root.value(QStringLiteral("GLBalanceList")).toArray();
         for (const QJsonValue &value : balances)
@@ -745,11 +776,13 @@ private:
                                                contribution.direction, false), true);
             }
         }
-        m_root.insert(QStringLiteral("GLBalanceList"), output);
+        // Aggregate in ordinary objects; append each final row only once.
+        for (const QJsonObject &balance : output)
+            appendRecord(&m_balances, balance);
         return true;
     }
 
-    void appendBalance(QJsonArray *output,
+    void appendBalance(QVector<QJsonObject> *output,
                        QMap<QString, int> *outputIndex,
                        const QJsonObject &balance,
                        bool mergeDuplicates)
@@ -767,7 +800,7 @@ private:
             return;
         }
         const int index = outputIndex->value(identity);
-        QJsonObject combined = output->at(index).toObject();
+        QJsonObject combined = output->at(index);
         addBalanceAmounts(&combined, balance);
         output->replace(index, combined);
         ++m_result->mergedBalanceCount;
@@ -780,27 +813,74 @@ private:
         if (!m_root.value(QStringLiteral("GLVoucherList")).isArray())
             return fail(QStringLiteral("GLVoucherList 不是凭证数组"), errorMessage);
 
-        QJsonArray vouchers = m_root.value(QStringLiteral("GLVoucherList")).toArray();
+        const QJsonArray vouchers = m_root.value(QStringLiteral("GLVoucherList")).toArray();
         for (int index = 0; index < vouchers.size(); ++index)
         {
             if (!vouchers.at(index).isObject())
                 return fail(QStringLiteral("GLVoucherList 中存在不是对象的凭证记录"), errorMessage);
             QJsonObject voucher = vouchers.at(index).toObject();
             const QString sourceCode = normalizedCode(voucher.value(QStringLiteral("AcctCode")));
-            if (!m_mapping.contains(sourceCode))
-                continue;
-            const QString targetCode = m_mapping.value(sourceCode);
-            if (sourceCode == targetCode)
-                continue;
-            voucher.insert(QStringLiteral("AcctCode"), targetCode);
-            vouchers.replace(index, voucher);
-            ++m_result->changedVoucherCount;
+            const QString targetCode = m_mapping.value(sourceCode, sourceCode);
+            if (sourceCode != targetCode)
+            {
+                checkedInsert(&voucher, QStringLiteral("AcctCode"), targetCode);
+                ++m_result->changedVoucherCount;
+            }
+            appendRecord(&m_vouchers, voucher);
         }
-        m_root.insert(QStringLiteral("GLVoucherList"), vouchers);
         return true;
     }
 
-    QJsonObject m_root;
+    bool assembleResult(QString *errorMessage)
+    {
+        for (auto it = m_mapping.constBegin(); it != m_mapping.constEnd(); ++it)
+        {
+            if (!m_directionsByCode.contains(it.value()))
+                return fail(QStringLiteral("合并结果校验失败：目标科目 %1 不存在").arg(it.value()), errorMessage);
+        }
+
+        // Insert each top-level member once. Replacing arrays on a shared root
+        // retains obsolete binary JSON storage across consecutive merges in Qt 5.
+        QJsonObject output;
+        for (auto it = m_root.constBegin(); it != m_root.constEnd(); ++it)
+        {
+            QJsonValue value = it.value();
+            if (it.key() == QStringLiteral("GLAccountList"))
+                value = m_accounts;
+            else if (it.key() == QStringLiteral("GLBalanceList"))
+                value = m_balances;
+            else if (it.key() == QStringLiteral("GLVoucherList"))
+                value = m_vouchers;
+            checkedInsert(&output, it.key(), value);
+        }
+
+        QVector<MutableNode> verifiedNodes;
+        if (!parseNodes(output, &verifiedNodes, errorMessage))
+            return false;
+        QMap<QString, int> indices;
+        for (int index = 0; index < verifiedNodes.size(); ++index)
+            indices.insert(verifiedNodes.at(index).code, index);
+        for (const MutableNode &node : m_nodes)
+        {
+            if (!node.alive)
+                continue;
+            const int index = indices.value(node.code, -1);
+            if (index < 0)
+                return fail(QStringLiteral("合并结果校验失败：科目写入不完整"), errorMessage);
+            const MutableNode &verified = verifiedNodes.at(index);
+            const QString expectedParent = node.parentIndex < 0 ? QString() : m_nodes.at(node.parentIndex).code;
+            const QString actualParent = verified.parentIndex < 0 ? QString() : verifiedNodes.at(verified.parentIndex).code;
+            if (actualParent != expectedParent || verified.children.isEmpty() != node.children.isEmpty())
+                return fail(QStringLiteral("合并结果校验失败：科目 %1 的层级不一致").arg(node.code), errorMessage);
+        }
+        m_result->root = output;
+        return true;
+    }
+
+    const QJsonObject m_root;
+    QJsonArray m_accounts;
+    QJsonArray m_balances;
+    QJsonArray m_vouchers;
     QVector<MutableNode> m_nodes;
     SubjectMergeResult *m_result;
     QMap<QString, int> m_originalIndexByCode;
@@ -886,10 +966,27 @@ bool SubjectMergeEngine::merge(const QJsonObject &root,
             *errorMessage = QStringLiteral("未提供科目合并结果对象");
         return false;
     }
-    *result = SubjectMergeResult();
-    QVector<MutableNode> nodes;
-    if (!parseNodes(root, &nodes, errorMessage))
-        return false;
-    MergeState state(root, nodes, result);
-    return state.apply(request, errorMessage);
+    try
+    {
+        SubjectMergeResult pending;
+        QVector<MutableNode> nodes;
+        if (!parseNodes(root, &nodes, errorMessage))
+            return false;
+        MergeState state(root, nodes, &pending);
+        if (!state.apply(request, errorMessage))
+            return false;
+        *result = pending;
+        return true;
+    }
+    catch (const JsonStorageError &)
+    {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("合并后的数据超过 JSON 存储限制，本次合并未应用。");
+    }
+    catch (const std::bad_alloc &)
+    {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("内存不足，本次合并未应用，请关闭其他账套后重试。");
+    }
+    return false;
 }

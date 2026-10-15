@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -13,6 +13,18 @@
   <ItemGroup>
     <ClCompile Include="Common\BrowserLoginBridge.cpp" />
     <ClInclude Include="Common\BrowserLoginBridge.h" />
+    <QtMoc Include="wecomdocumentwidget.h" />
+    <QtMoc Include="Common\WecomBrowser.h" />
+    <QtMoc Include="Common\WecomDocumentReader.h" />
+    <QtMoc Include="Common\WecomLocalServer.h" />
+    <ClCompile Include="Common\WecomLocalServer.cpp" />
+    <ClInclude Include="Common\WecomDocumentData.h" />
+    <ClInclude Include="Common\WecomSessionStore.h" />
+    <ClCompile Include="Common\WecomSessionStore.cpp" />
+    <ClCompile Include="wecomdocumentwidget.cpp" />
+    <ClCompile Include="Common\WecomBrowser.cpp" />
+    <ClCompile Include="Common\WecomDocumentData.cpp" />
+    <ClCompile Include="Common\WecomDocumentReader.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C53ACB70-E9F5-46FC-B30A-E702F4D36354}</ProjectGuid>
@@ -41,12 +53,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|Win32'" Label="QtSettings">
     <QtInstall>qt5.12.0</QtInstall>
-    <QtModules>core;network;gui;widgets;networkauth</QtModules>
+    <QtModules>core;network;gui;widgets;networkauth;sql</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|Win32'" Label="QtSettings">
     <QtInstall>qt5.12.0</QtInstall>
-    <QtModules>core;gui;widgets;network</QtModules>
+    <QtModules>core;gui;widgets;network;sql</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -104,18 +116,45 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Common\RestorePreferences.h" />
+    <ClInclude Include="Common\SqlRestoreRouting.h" />
+    <ClInclude Include="Common\SqlBackupCompatibility.h" />
+    <ClInclude Include="Common\SqlServer211.h" />
+    <ClInclude Include="Common\SqlServerCredentials.h" />
+    <None Include="SqlServer211.example.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="BackupRestoreWidget.h" />
+    <QtMoc Include="XinZhongDaRestoreWidget.h" />
+    <ClCompile Include="XinZhongDaRestoreWidget.cpp" />
+    <ClInclude Include="Common\XinZhongDaBackupRestorer.h" />
+    <ClCompile Include="Common\XinZhongDaBackupRestorer.cpp" />
+    <ClCompile Include="BackupRestoreWidget.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Common\subjectbalancefiles.cpp" />
+    <ClInclude Include="Common\subjectbalancefiles.h" />
+    <QtMoc Include="subjectbalanceimportwidget.h" />
+    <QtMoc Include="Common\subjectbalanceimport.h" />
+    <ClCompile Include="subjectbalanceimportwidget.cpp" />
+    <ClCompile Include="Common\subjectbalanceimport.cpp" />
+    <ClInclude Include="Common\importerhostselector.h" />
+    <ClInclude Include="Common\sessiontaskguard.h" />
+    <None Include="Resource\import\subject-balance-software.json" />
+    <QtMoc Include="vouchergroupnumwidget.h" />
+    <ClCompile Include="vouchergroupnumwidget.cpp" />
+    <ClCompile Include="Common\vouchergroupnumrepair.cpp" />
+    <ClInclude Include="Common\vouchergroupnumrepair.h" />
+    <ClCompile Include="Common\RemoteFileTransfer.cpp" />
+    <ClInclude Include="Common\RemoteFileTransfer.h" />
     <QtRcc Include="QtWidgetsApplication1.qrc" />
     <QtRcc Include="themestyle.qrc" />
     <QtUic Include="QtWidgetsApplication1.ui" />
     <QtUic Include="startupwindow.ui" />
     <QtUic Include="pwdloginwidget.ui" />
-    <QtUic Include="smsloginwidget.ui" />
-    <QtUic Include="micromsgloginwidget.ui" />
     <QtMoc Include="QtWidgetsApplication1.h" />
     <QtMoc Include="startupwindow.h" />
     <QtMoc Include="pwdloginwidget.h" />
-    <QtMoc Include="smsloginwidget.h" />
-    <QtMoc Include="micromsgloginwidget.h" />
     <QtMoc Include="Common\usertoken.h" />
     <QtMoc Include="functionselectwidget.h" />
     <QtMoc Include="deleteaccountsetwidget.h" />
@@ -132,12 +171,37 @@
     <QtMoc Include="subjectmergewidget.h" />
     <QtMoc Include="subjectconflictdialog.h" />
     <QtMoc Include="access2003converterwidget.h" />
+    <QtMoc Include="SudaBackupWidget.h" />
+    <QtMoc Include="T3RestoreWidget.h" />
+    <QtMoc Include="TPlusRestoreWidget.h" />
+    <QtMoc Include="KisProRestoreWidget.h" />
+    <QtMoc Include="InspurRestoreWidget.h" />
+    <ClCompile Include="TPlusRestoreWidget.cpp" />
+    <ClCompile Include="KisProRestoreWidget.cpp" />
+    <ClCompile Include="InspurRestoreWidget.cpp" />
+    <ClCompile Include="Common\TPlusBackupRestorer.cpp" />
+    <ClCompile Include="Common\KisProBackupRestorer.cpp" />
+    <ClCompile Include="Common\InspurBackupRestorer.cpp" />
+    <ClInclude Include="Common\TPlusBackupRestorer.h" />
+    <ClInclude Include="Common\KisProBackupRestorer.h" />
+    <ClInclude Include="Common\InspurBackupRestorer.h" />
+    <QtMoc Include="U8RestoreWidget.h" />
+    <ClCompile Include="U8RestoreWidget.cpp" />
+    <ClCompile Include="Common\U8BackupRestorer.cpp" />
+    <ClInclude Include="Common\U8BackupRestorer.h" />
+    <QtMoc Include="DatabaseCleanupWidget.h" />
+    <ClCompile Include="DatabaseCleanupWidget.cpp" />
+    <ClCompile Include="Common\DatabaseCleaner.cpp" />
+    <ClInclude Include="Common\DatabaseCleaner.h" />
+    <ClInclude Include="Common\LocalSqlInstances.h" />
+    <ClInclude Include="Common\SqlTargetSelector.h" />
+    <ClCompile Include="T3RestoreWidget.cpp" />
+    <ClCompile Include="Common\T3BackupRestorer.cpp" />
+    <ClInclude Include="Common\T3BackupRestorer.h" />
     <ClCompile Include="QtWidgetsApplication1.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="startupwindow.cpp" />
     <ClCompile Include="pwdloginwidget.cpp" />
-    <ClCompile Include="smsloginwidget.cpp" />
-    <ClCompile Include="micromsgloginwidget.cpp" />
     <ClCompile Include="functionselectwidget.cpp" />
     <ClCompile Include="deleteaccountsetwidget.cpp" />
     <ClCompile Include="backupaccountsetwidget.cpp" />
@@ -153,6 +217,11 @@
     <ClCompile Include="subjectmergewidget.cpp" />
     <ClCompile Include="subjectconflictdialog.cpp" />
     <ClCompile Include="access2003converterwidget.cpp" />
+    <ClCompile Include="SudaBackupWidget.cpp" />
+    <ClCompile Include="Common\SudaBackupUnpacker.cpp" />
+    <ClInclude Include="Common\SudaBackupUnpacker.h" />
+    <ClInclude Include="ThirdParty\zlib\zlib.h" />
+    <ClInclude Include="ThirdParty\zlib\zconf.h" />
     <ClCompile Include="httprequesthelper.cpp" />
     <ClCompile Include="lemoncofighelper.cpp" />
     <ClCompile Include="Common\logger.cpp" />
@@ -168,6 +237,7 @@
     <ClInclude Include="lemoncofighelper.h" />
     <ClInclude Include="Common\logger.h" />
     <ClInclude Include="Common\repairfilenameutils.h" />
+    <ClInclude Include="Common\repairinputfileutils.h" />
     <ClInclude Include="Common\repairpathconfigwidget.h" />
     <ClInclude Include="Common\repairinputfilepickerwidget.h" />
     <ClInclude Include="Common\subjectmergeengine.h" />
@@ -189,4 +259,11 @@
   </ImportGroup>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="DeployWecomWebViewLoader" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\Tools\Read-WecomDocument.ps1" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\ThirdParty\WebView2\x86\WebView2Loader.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="DeployLocalSqlConfiguration" AfterTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\SqlServer211.local.json') and '$(CopyLocalSqlConfiguration)' == 'true'">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\SqlServer211.local.json" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

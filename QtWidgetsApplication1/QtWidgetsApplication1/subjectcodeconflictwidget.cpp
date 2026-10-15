@@ -1,3 +1,5 @@
+﻿#include "Common/sessiontaskguard.h"
+#include "Common/repairinputfileutils.h"
 #include "subjectcodeconflictwidget.h"
 
 #include "Common/globaldata.h"
@@ -261,6 +263,7 @@ void SubjectCodeConflictWidget::updateOutputLabel()
 
 void SubjectCodeConflictWidget::loadInputDirectory()
 {
+    SessionTaskGuard sessionTask(this);
     const QString inputDirectory = QDir::cleanPath(RepairPathSettings::inputDir());
     QDir().mkpath(inputDirectory);
 
@@ -324,40 +327,7 @@ QString SubjectCodeConflictWidget::copyIntoInputDirectory(
         return QString();
     }
 
-    const QString inputDirectory = QDir::cleanPath(RepairPathSettings::inputDir());
-    if (!QDir().mkpath(inputDirectory))
-    {
-        if (errorMessage)
-            *errorMessage = QStringLiteral("创建共享输入目录失败");
-        return QString();
-    }
-
-    const QString sourcePath = QDir::cleanPath(sourceInfo.absoluteFilePath());
-    const QString inputRoot = inputDirectory + QLatin1Char('/');
-    if (sourcePath.startsWith(inputRoot, Qt::CaseInsensitive))
-        return sourcePath;
-
-    QDir inputDir(inputDirectory);
-    QString targetPath = inputDir.absoluteFilePath(sourceInfo.fileName());
-    int suffixNumber = 2;
-    while (QFileInfo::exists(targetPath))
-    {
-        const QString suffix = sourceInfo.suffix();
-        const QString fileName = sourceInfo.completeBaseName()
-            + QStringLiteral("_%1").arg(suffixNumber++)
-            + (suffix.isEmpty() ? QString() : QLatin1Char('.') + suffix);
-        targetPath = inputDir.absoluteFilePath(fileName);
-    }
-
-    if (!QFile::copy(sourcePath, targetPath))
-    {
-        if (errorMessage)
-            *errorMessage = QStringLiteral("复制文件到共享输入目录失败");
-        return QString();
-    }
-    AppLogger::operation(QStringLiteral("科目编码冲突导入文件 source=%1 target=%2")
-        .arg(QDir::toNativeSeparators(sourcePath), QDir::toNativeSeparators(targetPath)));
-    return targetPath;
+    return RepairInputFileUtils::copyToInputDirectory(path, errorMessage);
 }
 
 void SubjectCodeConflictWidget::onAddFilesClicked()
@@ -641,16 +611,16 @@ void SubjectCodeConflictWidget::refreshTable()
         QTableWidgetItem *statusItem = new QTableWidgetItem(source.status);
         if (!source.valid)
         {
-            statusItem->setForeground(QColor(220, 53, 69));
+            statusItem->setForeground(QColor(255, 139, 162));
             statusItem->setToolTip(source.errorMessage);
         }
         else if (source.conflicts.isEmpty())
         {
-            statusItem->setForeground(QColor(1, 130, 72));
+            statusItem->setForeground(QColor(110, 224, 177));
         }
         else if (source.status == QStringLiteral("\u5df2\u5904\u7406"))
         {
-            statusItem->setForeground(QColor(1, 130, 72));
+            statusItem->setForeground(QColor(110, 224, 177));
             statusItem->setToolTip(QDir::toNativeSeparators(source.outputZipPath));
         }
         m_pTable->setItem(row, 5, statusItem);
@@ -1093,6 +1063,11 @@ void SubjectCodeConflictWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void SubjectCodeConflictWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!event->mimeData() || !event->mimeData()->hasUrls())
         return;
     QStringList errors;
@@ -1108,7 +1083,8 @@ void SubjectCodeConflictWidget::dropEvent(QDropEvent *event)
         }
     }
     loadInputDirectory();
-    event->acceptProposedAction();
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
     if (!errors.isEmpty())
         QMessageBox::warning(this, QStringLiteral("部分文件导入失败"), errors.join(QLatin1Char('\n')));
 }

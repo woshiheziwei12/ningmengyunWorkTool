@@ -26,6 +26,8 @@ HttpResponse sendHttpRequest(const HttpRequestSpec &spec)
     for (const auto &header : spec.rawHeaders)
         request.setRawHeader(header.first, header.second);
 
+    CHttpRequestHelper::setInternalSessionHeader(request);
+
     QNetworkReply *reply = nullptr;
     const QString method = spec.method.toUpper();
     if (method == "POST")

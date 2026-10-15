@@ -1,3 +1,4 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "nonleafvoucherrepairwidget.h"
 
 #include "Common/globaldata.h"
@@ -992,6 +993,7 @@ QString NonLeafVoucherRepairWidget::outputDir() const
 
 void NonLeafVoucherRepairWidget::setRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     m_pBtnBack->setEnabled(!running);
     m_pPathConfig->setEnabled(!running);
@@ -1139,6 +1141,11 @@ void NonLeafVoucherRepairWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void NonLeafVoucherRepairWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasSupportedInputFile(event->mimeData()))
     {
         event->ignore();
@@ -1148,8 +1155,16 @@ void NonLeafVoucherRepairWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && isSupportedInputFile(url.toLocalFile()))
         {
-            event->acceptProposedAction();
-            startProcessFile(url.toLocalFile());
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            refreshInputFiles();
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
+            startProcessFile(inputPath);
             return;
         }
     }

@@ -547,6 +547,7 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
     QNetworkRequest networkRequest;
     networkRequest.setUrl(importUrl);
     CHttpRequestHelper::configureSsl(networkRequest);
+    CHttpRequestHelper::setInternalSessionHeader(networkRequest);
     networkRequest.setRawHeader("Authorization", (QStringLiteral("Bearer ") + request.accessToken).toUtf8());
     networkRequest.setHeader(QNetworkRequest::UserAgentHeader, "lemonClient");
     if (!request.ningMengCookie.isEmpty())

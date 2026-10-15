@@ -1,3 +1,4 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "allownullaatypewidget.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
@@ -1201,6 +1202,7 @@ void AllowNullAaTypeWidget::updateOutputDirLabel()
 
 void AllowNullAaTypeWidget::setRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     if (m_pBtnOutputDir)
         m_pBtnOutputDir->setEnabled(!running);
@@ -1397,6 +1399,11 @@ void AllowNullAaTypeWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void AllowNullAaTypeWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasZipFile(event->mimeData()))
     {
         event->ignore();
@@ -1407,9 +1414,17 @@ void AllowNullAaTypeWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && isZipFile(url.toLocalFile()))
         {
-            event->acceptProposedAction();
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            refreshInputFiles();
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
             AppLogger::operation(QStringLiteral("\u51ed\u8bc1\u8f85\u52a9\u6838\u7b97\u8865\u975e\u5fc5\u5f55\u62d6\u5165 ZIP path=%1").arg(QDir::toNativeSeparators(url.toLocalFile())));
-            startProcessZip(url.toLocalFile());
+            startProcessZip(inputPath);
             return;
         }
     }

@@ -1,3 +1,4 @@
+﻿#include "Common/repairinputfileutils.h"
 #include "subjectcodeseparatorwidget.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
@@ -556,7 +557,8 @@ bool writeMappingFile(const QString &mappingPath, const QList<SubjectCodeEntry> 
     return true;
 }
 
-bool processJsonFile(const QString &jsonPath, SubjectCodeProcessResult *summary, QList<SubjectCodeEntry> *allEntries, QString *errorMessage)
+bool processJsonFile(const QString &jsonPath, SubjectCodeProcessResult *summary, QList<SubjectCodeEntry> *allEntries, QString *errorMessage,
+                     bool preserveNonAccountJson = false)
 {
     AppLogger::operation(QStringLiteral("开始处理科目编码 JSON path=%1").arg(QDir::toNativeSeparators(jsonPath)));
     QFile file(jsonPath);
@@ -580,6 +582,15 @@ bool processJsonFile(const QString &jsonPath, SubjectCodeProcessResult *summary,
     }
 
     QJsonObject root = doc.object();
+    // ZIP packages may also contain report data such as FinancialTables.json.
+    // Leave companion files byte-for-byte intact; an explicitly present but
+    // invalid/empty account list must still fail validation below.
+    if (preserveNonAccountJson && !root.contains(QStringLiteral("GLAccountList")))
+    {
+        if (summary)
+            summary->logs.append(QStringLiteral("原样保留非科目 JSON：") + QFileInfo(jsonPath).fileName());
+        return true;
+    }
     if (summary && summary->accountSetName.isEmpty())
     {
         summary->accountSetName = root.value(QStringLiteral("AccountSet"))
@@ -846,16 +857,18 @@ SubjectCodeProcessResult processSubjectCodeInput(const QString &inputPath, const
     while (it.hasNext())
     {
         QString errorMessage;
-        if (!processJsonFile(it.next(), &result, &allEntries, &errorMessage))
+        const QString jsonPath = it.next();
+        if (!processJsonFile(jsonPath, &result, &allEntries, &errorMessage,
+                             inputInfo.suffix().compare("zip", Qt::CaseInsensitive) == 0))
         {
-            result.errorMessage = errorMessage;
+            result.errorMessage = QFileInfo(jsonPath).fileName() + QStringLiteral("：") + errorMessage;
             return result;
         }
     }
 
     if (result.jsonCount <= 0)
     {
-        result.errorMessage = QStringLiteral("未找到可处理的 JSON 文件");
+        result.errorMessage = QStringLiteral("未找到 GLAccountList 科目数据：输入文件中没有可处理的科目 JSON");
         return result;
     }
 
@@ -1007,6 +1020,7 @@ void SubjectCodeSeparatorWidget::updateOutputDirLabel()
 
 void SubjectCodeSeparatorWidget::setRunning(bool running, const QString &message)
 {
+    setProperty("sessionBusysetRunning", running);
     m_pBtnBrowse->setEnabled(!running);
     if (m_pBtnOutputDir)
         m_pBtnOutputDir->setEnabled(!running);
@@ -1208,6 +1222,11 @@ void SubjectCodeSeparatorWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void SubjectCodeSeparatorWidget::dropEvent(QDropEvent *event)
 {
+    if (!event->possibleActions().testFlag(Qt::CopyAction))
+    {
+        event->ignore();
+        return;
+    }
     if (!hasSupportedInputFile(event->mimeData()))
     {
         event->ignore();
@@ -1218,9 +1237,17 @@ void SubjectCodeSeparatorWidget::dropEvent(QDropEvent *event)
     {
         if (url.isLocalFile() && isSupportedInputFile(url.toLocalFile()))
         {
-            event->acceptProposedAction();
+            const QString inputPath = RepairInputFileUtils::copyDroppedFile(url.toLocalFile(), this);
+            if (inputPath.isEmpty())
+            {
+                event->ignore();
+                return;
+            }
+            refreshInputFiles();
+            event->setDropAction(Qt::CopyAction);
+            event->accept();
             AppLogger::operation(QStringLiteral("科目编码添加分隔符拖入文件 path=%1").arg(QDir::toNativeSeparators(url.toLocalFile())));
-            startProcessZip(url.toLocalFile());
+            startProcessZip(inputPath);
             return;
         }
     }

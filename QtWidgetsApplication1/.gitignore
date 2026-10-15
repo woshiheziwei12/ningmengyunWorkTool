@@ -52,6 +52,8 @@ ipch/
 [Oo]bj/
 x64/
 x86/
+!QtWidgetsApplication1/ThirdParty/WebView2/x86/
+!QtWidgetsApplication1/ThirdParty/WebView2/x86/WebView2Loader.dll
 Win32/
 BuildCheck/
 dist/
@@ -83,6 +85,10 @@ logs/
 *Packages/
 CliBackups/
 LemonApp.dat
+LemonApp.*.dat
+SqlServer211.local.json
+session.dat
+subject_balance_import_history.json
 *.zip
 *.ais
 *.aiy
@@ -106,6 +112,19 @@ LemonApp.dat
 /测试环境当前登录流程.txt
 /$null
 /nul
+/.codex-work/
+/.diagnostics/
+__pycache__/
+*.py[cod]
+node_modules/
+test-output/
+*.mdf
+*.ndf
+*.ldf
+*.BA_
+*.tx_
+*.VAL
+*.MSS
 
 # OS and editor temporary files
 .DS_Store
