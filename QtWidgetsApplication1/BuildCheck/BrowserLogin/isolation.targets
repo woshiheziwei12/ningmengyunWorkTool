@@ -1,0 +1,14 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <ProgramDataBaseFileName>$(IntDir)compiler.pdb</ProgramDataBaseFileName>
+      <PrecompiledHeaderOutputFile>$(IntDir)compiler.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <Link><ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile></Link>
+  </ItemDefinitionGroup>
+  <Import Project="../../Tests/BrowserLoginBridgeTests.targets" Condition="'$(BridgeTests)'=='true'" />
+  <Target Name="ReportIsolatedPaths" BeforeTargets="PrepareForBuild">
+    <Message Importance="high" Text="ISOLATION OutDir=$(OutDir) IntDir=$(IntDir) QtIntDir=$(QtIntDir) TLog=$(TLogLocation) Clean=$(IntDir)$(CleanFile)" />
+    <Message Importance="high" Text="ISOLATION PDB=%(ClCompile.ProgramDataBaseFileName) PCH=%(ClCompile.PrecompiledHeaderOutputFile)" />
+  </Target>
+</Project>

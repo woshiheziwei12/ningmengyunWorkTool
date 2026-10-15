@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>柠檬云账套工具</title><link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark">◈</span><div><h1>账套工具</h1><p>柠檬云 · 云端账套管理 · v1.1.0</p></div></div>
+    <div class="header-actions"><span id="environment" class="badge">正在连接页面</span><button id="hide" class="icon" title="收起面板，当前任务继续">收起 ↘</button></div>
+  </header>
+  <main>
+    <section class="session-card">
+      <div><span class="eyebrow">当前浏览器会话</span><h2 id="identity">沿用网页登录，无需复制 Cookie</h2><p id="session-note">登录柠檬云后，点击右侧按钮读取可操作的套餐和账套。</p></div>
+      <button id="connect" class="primary">读取账套 <span>↻</span></button>
+    </section>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <nav aria-label="工具功能"><button class="tab active" data-tab="accounts" aria-pressed="true">账套管理</button><button class="tab" data-tab="upload" aria-pressed="false">上传导账包</button><button class="tab" data-tab="cookie" aria-pressed="false">登录 Cookie</button></nav>
+    <section id="cookie-view" class="card" hidden>
+      <div class="section-title"><div><h2>获取 ningmengcookie</h2><p>读取当前柠檬云页面的登录 Cookie，无需先读取账套。</p></div><button id="read-cookie" class="primary">获取 Cookie</button></div>
+      <label class="field">当前页面的 ningmengcookie<input id="cookie-value" type="password" readonly autocomplete="off" spellcheck="false" placeholder="点击“获取 Cookie”读取" aria-label="当前页面的 ningmengcookie"></label>
+      <div class="cookie-actions"><button id="show-cookie" disabled>显示</button><button id="copy-cookie" disabled>复制 Cookie</button><button id="clear-cookie" disabled>清除显示</button></div>
+      <p id="cookie-note" class="footnote" role="status" aria-live="polite">默认遮挡，60 秒后自动清除面板中的值；不会删除浏览器 Cookie。</p>
+    </section>
+    <section id="accounts-view" class="card">
+      <div class="section-title"><div><h2>我的账套 <span id="account-count" class="count">0</span></h2><p>勾选需要处理的账套，可跨套餐选择。</p></div><input id="search" type="search" placeholder="搜索账套名称或套餐编号" aria-label="搜索账套"></div>
+      <div class="table-wrap"><table><thead><tr><th class="check"><input id="select-all" type="checkbox" aria-label="全选当前筛选的账套"></th><th>账套名称</th><th>启用期间</th><th>所属套餐</th><th>处理状态</th></tr></thead><tbody id="accounts"></tbody></table><div id="empty" class="empty"><span>▤</span><h3>还没有账套列表</h3><p>点击「读取账套」，这里将显示当前账号可操作的账套。</p></div></div>
+      <div class="action-bar"><span id="selection">已选 0 个账套</span><div><button id="backup" class="primary" disabled>↓ 备份并下载</button><button id="delete" class="danger" disabled>删除所选账套</button></div></div>
+      <p class="footnote">备份保存在 Chrome 默认下载目录的「柠檬云备份」文件夹；删除调用与桌面工具相同的移入回收站接口。</p>
+    </section>
+    <section id="upload-view" class="card" hidden>
+      <div class="section-title"><div><h2>上传专业版导账包</h2><p>选择目标套餐和 ZIP，确认后上传。原始文件保留不变。</p></div></div>
+      <label class="field">目标套餐<select id="plan" disabled><option value="">请先读取账套</option></select></label>
+      <label class="dropzone" id="dropzone" tabindex="0"><span class="upload-symbol">↑</span><strong id="file-name">点击选择或拖入 ZIP 文件</strong><span id="file-detail">单个 ZIP 最大 128 MB，解压后最大 256 MB</span><input id="file" type="file" accept=".zip,application/zip" hidden></label>
+      <p class="footnote">上传副本会设置 AccountSetType=1、AAId=0，并将 ProServiceId 设为所选套餐编号。上传会创建导入任务。</p>
+      <button id="upload" class="primary" disabled>确认文件并上传</button>
+      <div class="result-box"><label class="field">导入任务 ID<input id="import-id" placeholder="上传后自动填入，也可粘贴已有 ID"></label><button id="query" disabled>查询导入结果</button><pre id="import-result">尚未提交导入任务</pre></div>
+    </section>
+    <section class="card activity"><div class="section-title"><h2>操作记录</h2><button id="stop" disabled>停止后续任务</button></div><p id="task-note">收起面板不会停止任务。执行期间请保持当前页面打开。</p><ol id="log" aria-live="polite"><li class="muted">等待操作</li></ol></section>
+  </main>
+  <dialog id="confirm-dialog"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-description"></p><ul id="confirm-list"></ul><div class="dialog-actions"><button value="cancel">取消</button><button id="confirm-submit" value="confirm" class="primary">确认执行</button></div></form></dialog>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

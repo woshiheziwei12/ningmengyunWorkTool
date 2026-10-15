@@ -10,6 +10,7 @@ class DeleteAccountSetWidget;
 class BackupAccountSetWidget;
 class RepairAccountSetWidget;
 class JsonQueryWidget;
+class BrowserLoginBridge;
 class SubjectCodeConflictWidget;
 class SubjectCodeSeparatorWidget;
 class ImportPackageUploadWidget;
@@ -81,6 +82,7 @@ private:
     BackupAccountSetWidget *m_pBackupAccountSetWidget;
     RepairAccountSetWidget *m_pRepairAccountSetWidget;
     JsonQueryWidget *m_pJsonQueryWidget;
+    BrowserLoginBridge *m_browserLoginBridge = nullptr;
     SubjectCodeConflictWidget *m_pSubjectCodeConflictWidget;
     SubjectCodeSeparatorWidget *m_pSubjectCodeSeparatorWidget;
     ImportPackageUploadWidget *m_pImportPackageUploadWidget;

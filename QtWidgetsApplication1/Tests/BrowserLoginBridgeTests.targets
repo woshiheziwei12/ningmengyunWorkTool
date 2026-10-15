@@ -1,0 +1,13 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Remove="@(ClCompile)" />
+    <QtMoc Remove="@(QtMoc)" />
+    <QtRcc Remove="@(QtRcc)" />
+    <QtUic Remove="@(QtUic)" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)BrowserLoginBridgeTests.cpp">
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\BrowserLoginBridge.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup><Link><SubSystem>Console</SubSystem></Link></ItemDefinitionGroup>
+</Project>

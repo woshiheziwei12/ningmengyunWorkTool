@@ -19,7 +19,7 @@
 | 登录：账号密码 | `auth login-password` | 已实现于 `PwdLoginWidget` |
 | 登录：短信验证码 | `auth sms-send` / `auth login-sms` | 已实现于 `SmsLoginWidget` |
 | 登录：微信扫码 | `auth wx-qrcode` / `auth wx-poll` / `auth login-wechat` | 已实现于 `MicroMsgLoginWidget` |
-| 打开柠檬云官网并注入 cookie | `auth open-web` | 已实现于主窗口 |
+| 默认浏览器配合登录助手同步 Cookie 并打开柠檬云官网 | `auth open-web` | GUI 已实现，CLI 待实现 |
 | 获取 ningmengcookie | `auth cookie` | 已实现于主窗口 |
 | 删除账套 | `accountsets delete` | 已实现于 `DeleteAccountSetWidget` |
 | 备份下载账套 | `accountsets backup` | 已实现于 `BackupAccountSetWidget` |
@@ -439,16 +439,16 @@ LemonWorkToolCli.exe auth logout --profile default
 
 #### `auth open-web`
 
-对应 GUI “打开柠檬云官网”。
+对应 GUI “打开柠檬云官网”。GUI 当前通过 统一扩展 `LemonChromeExtension` 和短时本机连接同步账号；以下 CLI 仍为规划，不代表已经实现。
 
 ```powershell
-LemonWorkToolCli.exe auth open-web --browser edge
+LemonWorkToolCli.exe auth open-web
 ```
 
 流程：
 
-- 复用当前临时浏览器扩展方案，将 `ningmengcookie` 注入 `.ningmengyun.com`。
-- 启动 Edge 并打开 `wbgateMenuUrl`。
+- 复用 GUI 的 `BrowserLoginBridge`，由已安装的“柠檬云账套工具”一次性接收 Cookie 后打开当前环境官网。
+- 使用默认浏览器，不创建临时扩展或独立配置目录；需要 CLI 事件循环保持至同步结束或 60 秒超时，不能启动浏览器后立即退出。
 - 如果 CLI 环境不允许启动 GUI 程序，返回 `GUI_NOT_AVAILABLE`。
 
 输出字段：
@@ -456,9 +456,8 @@ LemonWorkToolCli.exe auth open-web --browser edge
 ```json
 {
   "data": {
-    "browser": "edge",
+    "browser": "default",
     "started": true,
-    "profileDir": "C:\\Users\\...\\Temp\\lemoncloud_auth\\...",
     "url": "https://..."
   }
 }

@@ -16,6 +16,7 @@
 #include "lemoncofighelper.h"
 #include "Common/globaldata.h"
 #include "Common/logger.h"
+#include "Common/BrowserLoginBridge.h"
 #include <QFile>
 #include <QStackedWidget>
 #include <QMessageBox>
@@ -26,14 +27,9 @@
 #include <QFrame>
 #include <QPixmap>
 #include <QUrl>
-#include <QDir>
-#include <QProcess>
-#include <QJsonObject>
-#include <QJsonDocument>
-#include <QJsonArray>
+#include <QDesktopServices>
 #include <QClipboard>
 #include <QApplication>
-#include <QDateTime>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QResizeEvent>
@@ -746,139 +742,37 @@ void QtWidgetsApplication1::onOpenWebsite()
 {
     AppLogger::operation(QStringLiteral("打开柠檬云官网"));
     lemoncofighelper configHelper;
-    QString wbgateUrl = configHelper.GetAccountUrlByKey("wbgateMenuUrl");
-    QString wbgateCookieUrl = configHelper.GetAccountUrlByKey(lemoncofighelper::kWbgateCookieUrlKey);
-    QString cookieDomain = configHelper.GetAccountUrlByKey(lemoncofighelper::kCookieDomainKey);
+    const QString wbgateUrl = configHelper.GetAccountUrlByKey("wbgateMenuUrl");
     if (wbgateUrl.isEmpty())
     {
-        QMessageBox::warning(this, QStringLiteral("\u63d0\u793a"),
-                             QStringLiteral("wbgateMenuUrl \u672a\u914d\u7f6e"));
-        return;
-    }
-    if (wbgateCookieUrl.isEmpty())
-        wbgateCookieUrl = QUrl(wbgateUrl).scheme() + QStringLiteral("://") + QUrl(wbgateUrl).host();
-    if (cookieDomain.isEmpty())
-        cookieDomain = QUrl(wbgateUrl).host();
-    QString hostPermissionDomain = cookieDomain;
-    if (hostPermissionDomain.startsWith('.'))
-        hostPermissionDomain.remove(0, 1);
-    const bool useHostOnlyCookie = hostPermissionDomain.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0
-        || hostPermissionDomain == QStringLiteral("127.0.0.1");
-
-    // 创建临时浏览器扩展，通过 chrome.cookies API 注入 ningmengcookie
-    QString tempBase = QDir::tempPath() + "/lemoncloud_auth/"
-        + QString::number(QDateTime::currentMSecsSinceEpoch());
-    QString extDir = tempBase + "/ext";
-    QString profileDir = tempBase + "/profile";
-    // 每次清除旧 profile，确保 onInstalled 事件能重新触发
-    QDir().mkpath(extDir);
-    QDir().mkpath(profileDir);
-
-    // 写入 manifest.json
-    {
-        QFile f(extDir + "/manifest.json");
-        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        {
-            QJsonObject bg;
-            bg["service_worker"] = "background.js";
-
-            QJsonArray perms;
-            perms.append("cookies");
-            perms.append("tabs");
-            QJsonArray hostPerms;
-            hostPerms.append(QStringLiteral("*://") + hostPermissionDomain + QStringLiteral("/*"));
-            if (!useHostOnlyCookie)
-                hostPerms.append(QStringLiteral("*://*.") + hostPermissionDomain + QStringLiteral("/*"));
-
-            QJsonObject manifest;
-            manifest["manifest_version"] = 3;
-            manifest["name"] = "LemonCloud Auth";
-            manifest["version"] = "1.0";
-            manifest["permissions"] = perms;
-            manifest["host_permissions"] = hostPerms;
-            manifest["background"] = bg;
-
-            f.write(QJsonDocument(manifest).toJson());
-            f.close();
-        }
-    }
-
-    // 写入 background.js
-    {
-        QFile f(extDir + "/background.js");
-        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        {
-            QJsonObject cookieObj;
-            cookieObj["url"] = wbgateCookieUrl;
-            cookieObj["name"] = "ningmengcookie";
-            cookieObj["value"] = m_pGlobalData->m_strNingMengCookie;
-            if (!useHostOnlyCookie)
-                cookieObj["domain"] = cookieDomain;
-            cookieObj["path"] = "/";
-            QString cookieJson = QString::fromUtf8(QJsonDocument(cookieObj).toJson(QJsonDocument::Compact));
-
-            QJsonObject tabObj;
-            tabObj["url"] = wbgateUrl;
-            QString tabJson = QString::fromUtf8(QJsonDocument(tabObj).toJson(QJsonDocument::Compact));
-
-            QString script =
-                "chrome.runtime.onInstalled.addListener(function() {\n"
-                "  chrome.cookies.set(" + cookieJson + ", function() {\n"
-                "    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {\n"
-                "      if (tabs && tabs.length > 0) {\n"
-                "        chrome.tabs.update(tabs[0].id, " + tabJson + ");\n"
-                "      } else {\n"
-                "        chrome.tabs.create(" + tabJson + ");\n"
-                "      }\n"
-                "    });\n"
-                "  });\n"
-                "});\n";
-
-            f.write(script.toUtf8());
-            f.close();
-        }
-    }
-
-    // 查找 Edge 浏览器
-    QString browserPath;
-    QStringList searchPaths = {
-        "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-        "C:/Program Files/Microsoft/Edge/Application/msedge.exe"
-    };
-    for (const QString &p : searchPaths)
-    {
-        if (QFile::exists(p))
-        {
-            browserPath = p;
-            break;
-        }
-    }
-
-    if (browserPath.isEmpty())
-    {
-        QMessageBox::warning(this, QStringLiteral("\u63d0\u793a"),
-                             QStringLiteral("\u672a\u627e\u5230 Edge \u6d4f\u89c8\u5668"));
+        QMessageBox::warning(this, QStringLiteral("提示"),
+                             QStringLiteral("wbgateMenuUrl 未配置"));
         return;
     }
 
-    // 启动浏览器，使用独立配置目录并加载临时扩展
-    QStringList args;
-    args << "--user-data-dir=" + profileDir;
-    args << "--load-extension=" + extDir;
-    args << "--no-first-run";
-    args << "--disable-default-apps";
-    args << "about:blank";
-
-    AppLogger::command(browserPath, args);
-    if (!QProcess::startDetached(browserPath, args))
+    if (!m_browserLoginBridge) {
+        m_browserLoginBridge = new BrowserLoginBridge(this);
+        m_browserLoginBridge->finished = [](bool success) {
+            if (success) AppLogger::operation(QStringLiteral("浏览器登录同步完成"));
+            else AppLogger::operation(QStringLiteral("浏览器登录同步未完成，请检查扩展后重新打开官网"));
+        };
+    }
+    QString error;
+    const QUrl handoffUrl = m_browserLoginBridge->start(m_pGlobalData->m_strNingMengCookie, QUrl(wbgateUrl), &error);
+    if (handoffUrl.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("打开官网失败"), error);
+        return;
+    }
+    if (!QDesktopServices::openUrl(handoffUrl))
     {
-        AppLogger::error(QStringLiteral("Edge 启动失败 path=%1").arg(browserPath));
-        QMessageBox::warning(this, QStringLiteral("\u63d0\u793a"),
-                             QStringLiteral("Edge \u542f\u52a8\u5931\u8d25"));
+        m_browserLoginBridge->cancel();
+        AppLogger::error(QStringLiteral("使用默认浏览器打开柠檬云官网失败"));
+        QMessageBox::warning(this, QStringLiteral("提示"),
+                             QStringLiteral("无法打开柠檬云官网，请检查系统默认浏览器设置"));
     }
     else
     {
-        AppLogger::operation(QStringLiteral("Edge 已启动 path=%1").arg(browserPath));
+        AppLogger::operation(QStringLiteral("已请求默认浏览器连接登录助手"));
     }
 }
 

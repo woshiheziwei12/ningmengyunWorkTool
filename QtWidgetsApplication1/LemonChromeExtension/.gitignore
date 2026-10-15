@@ -1,0 +1,5 @@
+node_modules/
+.npm-cache/
+test-output/
+unpacked/
+LemonChromeExtension.zip

@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "柠檬云账套工具",
+  "version": "1.1.0",
+  "description": "在柠檬云页面备份、删除和上传账套，读取复制登录 Cookie，并接收桌面工具的官网登录同步。",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "cookies",
+    "storage",
+    "downloads",
+    "alarms",
+    "declarativeNetRequestWithHostAccess",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://*.ningmengyun.com/*",
+    "http://*.ningmengyun.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "打开柠檬云账套工具"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.ningmengyun.com/*",
+        "http://*.ningmengyun.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/lemon-login/v1/"
+      ],
+      "js": [
+        "login-content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.html"
+      ],
+      "matches": [
+        "https://*.ningmengyun.com/*",
+        "http://*.ningmengyun.com/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors http://*.ningmengyun.com https://*.ningmengyun.com;"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuk+RAfeiGnRQTo7UTaOxYq0Mogdy7gKyoA/cNEqkomCH93yPg8xtevJZ78EOupDoUmqJg1u+JzlfG55G97bb/kO6XCkOGzjgfR4sZxtRSj/JW3qVy0jQQ2wSgMiQj8MmznJsHp6gtwB+GV4xvkiumEdY4jp0AxdL4pZyeFzbzjf/kWzTgs9SdzvqbrELUckB39jwYb4pzfXyDxiHXydXOtSdo9dxLQ1/M8lfrufVU9dm30s2qivqEpaPRJvPrzd+QMftSuoljfFUprHNtYw4IO5xXY3Cf0T0Qj8Wzem9LozAA2aTcejW15jUZgYDrYnC+KruuKyxHyED/6jm/UbwiwIDAQAB"
+}
