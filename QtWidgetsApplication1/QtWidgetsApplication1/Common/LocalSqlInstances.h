@@ -13,10 +13,20 @@ inline QString cachedVersion(const QString& server)
     QSettings settings(QSettings::defaultFormat(), QSettings::UserScope, "LemonCloud", "LemonWorkTool");
     return settings.value(cacheKey(server) + QStringLiteral("/version")).toString();
 }
-inline void cacheVersion(const QString& server, const QString& version)
+inline int cachedDatabaseVersion(const QString& server)
 {
     QSettings settings(QSettings::defaultFormat(), QSettings::UserScope, "LemonCloud", "LemonWorkTool");
+    return settings.value(cacheKey(server) + QStringLiteral("/databaseVersion")).toInt();
+}
+inline void cacheVersion(const QString& server, const QString& version, int databaseVersion = 0)
+{
+    if (version.isEmpty()) return; // A failed scan must not erase a successful lookup.
+    QSettings settings(QSettings::defaultFormat(), QSettings::UserScope, "LemonCloud", "LemonWorkTool");
+    if (settings.value(cacheKey(server) + QStringLiteral("/version")).toString() != version)
+        settings.remove(cacheKey(server) + QStringLiteral("/databaseVersion"));
     settings.setValue(cacheKey(server) + QStringLiteral("/version"), version);
+    if (databaseVersion > 0)
+        settings.setValue(cacheKey(server) + QStringLiteral("/databaseVersion"), databaseVersion);
     settings.setValue(cacheKey(server) + QStringLiteral("/scannedAt"), QDateTime::currentDateTimeUtc());
 }
 inline QString registryEngineVersion(const QString& current, const QString& setup)
@@ -70,6 +80,9 @@ inline QStringList discover()
         QSettings instances(QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL"), format);
         names.append(instances.childKeys());
         for (const auto& name : instances.childKeys()) {
+            const QString server = name.compare(QStringLiteral("MSSQLSERVER"), Qt::CaseInsensitive) == 0
+                ? QStringLiteral(".") : QStringLiteral(".\\") + name;
+            if (!cachedVersion(server).isEmpty()) continue;
             const QString instanceId = instances.value(name).toString();
             const QString base = QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\") + instanceId;
             QSettings current(base + QStringLiteral("\\MSSQLServer\\CurrentVersion"), format);

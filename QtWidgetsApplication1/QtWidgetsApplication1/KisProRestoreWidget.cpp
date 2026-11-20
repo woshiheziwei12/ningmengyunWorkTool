@@ -74,7 +74,7 @@ KisProRestoreWidget::KisProRestoreWidget(QWidget* parent):QWidget(parent)
     auto* paths=new QFormLayout();paths->setRowWrapPolicy(QFormLayout::WrapLongRows);
     m_dataDirectory=kisProEdit(this,"kisProDataDirectory",QString::fromUtf8(u8"读取备份后自动填入服务器默认数据目录"));m_logDirectory=kisProEdit(this,"kisProLogDirectory",QString::fromUtf8(u8"服务器上的目录，不是本机上传路径"));
     paths->addRow(QString::fromUtf8(u8"服务器数据目录"),m_dataDirectory);paths->addRow(QString::fromUtf8(u8"服务器日志目录"),m_logDirectory);layout->addLayout(paths);
-    auto* note=new QLabel(QString::fromUtf8(u8"恢复后读取备份中的公司名称，自动创建或复用 AcctCtl 采集控制库并登记账套。目标库名须以 AIS 开头；已有数据库拒绝覆盖。控制库仅用于导账采集，不提供完整金蝶系统管理功能。"),this);note->setWordWrap(true);layout->addWidget(note);
+    auto* note=new QLabel(QString::fromUtf8(u8"原库名和目标库名不要求 AIS 前缀；目标库名仅含字母、数字和下划线，已有数据库拒绝覆盖。恢复后校验金蝶专业版关键表和公司信息，通过后登记到 AcctCtl 采集控制库；校验失败保留数据库并显示原因。控制库仅用于导账采集，不提供完整金蝶系统管理功能。"),this);note->setWordWrap(true);layout->addWidget(note);
     m_progress=new QProgressBar(this);m_progress->setRange(0,1);m_progress->setValue(0);layout->addWidget(m_progress);
     m_log=new QPlainTextEdit(this);m_log->setObjectName("kisProRestoreLog");m_log->setReadOnly(true);m_log->setAcceptDrops(false);m_log->viewport()->setAcceptDrops(false);m_log->setMinimumHeight(160);layout->addWidget(m_log);
     auto* actions=new QHBoxLayout();m_backButton=new QPushButton(QString::fromUtf8(u8"返回"),this);m_stopButton=new QPushButton(QString::fromUtf8(u8"取消读取"),this);

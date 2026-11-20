@@ -1,5 +1,6 @@
 #include "SqlServerCredentials.h"
 #include "T3BackupRestorer.h"
+#include "LocalSqlInstances.h"
 #include "SqlBackupCompatibility.h"
 #include "RemoteFileTransfer.h"
 #include "../ThirdParty/zlib/zlib.h"
@@ -121,15 +122,23 @@ static QString t3DiskLiteral(const QString& path)
 {
     return T3BackupRestorer::quoteLiteral(QDir::toNativeSeparators(path));
 }
-static bool t3ServerInfo(QSqlDatabase& db, T3ServerInfo* server, QString* error)
+static bool t3ServerInfo(QSqlDatabase& db, const T3SqlConnection& options, T3ServerInfo* server, QString* error)
 {
+    const bool local = LocalSqlInstances::isLocalEndpoint(options.server);
+    const QString version = local ? LocalSqlInstances::cachedVersion(options.server) : QString();
+    const int databaseVersion = local ? LocalSqlInstances::cachedDatabaseVersion(options.server) : 0;
+    // Keep paths live, but reuse successfully persisted engine/internal versions.
+    const QString versionSql = version.isEmpty() ? QStringLiteral("CONVERT(nvarchar(128),SERVERPROPERTY('ProductVersion'))")
+        : T3BackupRestorer::quoteLiteral(version);
+    const QString databaseVersionSql = databaseVersion > 0 ? QString::number(databaseVersion)
+        : QStringLiteral("CONVERT(int,DATABASEPROPERTYEX(N'master',N'Version'))");
     QSqlQuery query(db);
     if (!query.exec(QStringLiteral("SELECT CONVERT(nvarchar(128),@@SERVERNAME),"
-        "CONVERT(nvarchar(128),SERVERPROPERTY('ProductVersion')),"
+        "%1,"
         "CONVERT(nvarchar(4000),SERVERPROPERTY('InstanceDefaultBackupPath')),"
         "CONVERT(nvarchar(4000),SERVERPROPERTY('InstanceDefaultDataPath')),"
         "CONVERT(nvarchar(4000),SERVERPROPERTY('InstanceDefaultLogPath')),"
-        "CONVERT(int,DATABASEPROPERTYEX(N'master',N'Version'))")) || !query.next())
+        "%2").arg(versionSql, databaseVersionSql)) || !query.next())
     { *error = query.lastError().text(); return false; }
     server->name=query.value(0).toString();server->version=query.value(1).toString();
     server->backupDirectory=query.value(2).toString();server->dataDirectory=query.value(3).toString();
@@ -145,6 +154,7 @@ static bool t3ServerInfo(QSqlDatabase& db, T3ServerInfo* server, QString* error)
         }
     }
     if(server->backupDirectory.isEmpty())server->backupDirectory=server->dataDirectory;
+    if (local) LocalSqlInstances::cacheVersion(options.server, server->version, server->databaseVersion);
     return true;
 }
 
@@ -252,7 +262,7 @@ bool T3BackupRestorer::testConnection(const T3SqlConnection& options,T3ServerInf
 {
     error->clear();T3SqlSession session;
     if(!session.open(options,error))return false;
-    const bool ok=t3ServerInfo(session.db,server,error);*error=t3Redact(*error,options);return ok;
+    const bool ok=t3ServerInfo(session.db,options,server,error);*error=t3Redact(*error,options);return ok;
 }
 bool T3BackupRestorer::preparedFileExists(const T3SqlConnection& options,const QString& path,QString* error)
 {
@@ -293,7 +303,7 @@ T3BackupAnalysis T3BackupRestorer::analyze(const T3SqlConnection& options,const 
 {
     T3BackupAnalysis result;T3SqlSession session;
     if(!session.open(options,&result.error))return result;
-    if(!t3ServerInfo(session.db,&result.server,&result.error))return result;
+    if(!t3ServerInfo(session.db,options,&result.server,&result.error))return result;
     QString staging=stagingDirectory.trimmed();
     if(isLocalServer(options.server))
     { if(staging.isEmpty())staging=result.server.backupDirectory; }
@@ -514,7 +524,7 @@ T3RestoreResult T3BackupRestorer::restore(const T3SqlConnection& options,const T
     if(!analysis.success || analysis.preparedPath.isEmpty()){result.error=QString::fromUtf8(u8"请先读取备份。");return result;}
     T3SqlSession session;if(!session.open(options,&result.error))return result;
     auto current=t3ReadSets(session.db,analysis.preparedPath,&result.error);if(!result.error.isEmpty())return result;
-    T3ServerInfo targetInfo;if(!t3ServerInfo(session.db,&targetInfo,&result.error))return result;
+    T3ServerInfo targetInfo;if(!t3ServerInfo(session.db,options,&targetInfo,&result.error))return result;
     result.error=SqlBackupCompatibility::error(current,targetInfo);
     if(!result.error.isEmpty())return result;
     // Reject every conflicting target before creating any database.

@@ -113,12 +113,15 @@ void runSqlInstanceTests()
 
     BackupRestoreWidget unified;
     auto* software = unified.findChild<QComboBox*>("restoreSoftware");
-    checkInstance(software && software->count() == 7 && !software->isEditable(), "one entry with seven fixed software choices");
-    const QStringList pageNames = {"t3RestorePage", "u8RestorePage", "tplusRestorePage", "kisProRestorePage", "inspurRestorePage", "xinZhongDaRestorePage", "sudaBackupPage"};
+    checkInstance(software && software->count() == 8 && !software->isEditable(), "one entry with seven software choices and generic BAK restore");
+    const QMap<int, QString> pageNames = {{20,"t3RestorePage"},{22,"u8RestorePage"},{25,"tplusRestorePage"},
+        {26,"kisProRestorePage"},{27,"inspurRestorePage"},{28,"xinZhongDaRestorePage"},{19,"sudaBackupPage"},{29,"bakRestorePage"}};
     for (int i = 0; i < software->count(); ++i) {
         software->setCurrentIndex(i);
-        auto* page = unified.findChild<QWidget*>(pageNames[i]);
-        checkInstance(page, qPrintable("software page: " + pageNames[i]));
+        const auto pageName = pageNames.value(software->currentData().toInt());
+        checkInstance(!pageName.isEmpty(), "each restore option has an expected page");
+        auto* page = unified.findChild<QWidget*>(pageName);
+        checkInstance(page, qPrintable("software page: " + pageName));
         QPointer<QWidget> previous(page);
         page->setProperty("sessionBusyTest", true);
         checkInstance(!software->isEnabled(), "software switch disabled immediately during work");

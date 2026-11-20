@@ -86,10 +86,13 @@ QString KisProBackupRestorer::validateSelections(const QVector<T3RestoreSelectio
     if (selections.isEmpty()) return QString::fromUtf8(u8"请至少选择一个数据库备份。");
     const QString basic = T3BackupRestorer::validateSelections(selections);
     if (!basic.isEmpty()) return basic;
-    const QRegularExpression name("^AIS[A-Za-z0-9_]+$", QRegularExpression::CaseInsensitiveOption);
-    for (const auto& item : selections)
-        if (!name.match(item.targetDatabase).hasMatch() || !name.match(item.backup.databaseName).hasMatch())
-            return QString::fromUtf8(u8"金蝶专业版原库及目标库名须以 AIS 开头，仅含字母、数字和下划线；重名时请修改目标库名。");
+    const QRegularExpression name("^[A-Za-z0-9_]+$");
+    for (const auto& item : selections) {
+        if (item.targetDatabase.compare("AcctCtl", Qt::CaseInsensitive) == 0)
+            return QString::fromUtf8(u8"不能恢复到 AcctCtl 采集控制库，请修改目标库名。");
+        if (!name.match(item.targetDatabase).hasMatch())
+            return QString::fromUtf8(u8"目标库名仅允许字母、数字和下划线；重名时请修改目标库名。不要求 AIS 前缀。");
+    }
     return {};
 }
 T3BackupAnalysis KisProBackupRestorer::analyze(const T3SqlConnection& options, const QString& source,
@@ -130,7 +133,9 @@ T3BackupAnalysis KisProBackupRestorer::analyze(const T3SqlConnection& options, c
     // List each one; duplicate target names are checked only for the user's selection.
     for (const auto& set : result.sets) {
         if (!result.error.isEmpty()) break;
-        result.error = validateSelections({{set, set.databaseName}});
+        // Source names identify the backup, not its product. Validate the editable
+        // target only when restoring; the business schema is checked after recovery.
+        result.error = T3BackupRestorer::validateSelections({{set, set.databaseName}});
     }
     if (result.error.isEmpty()) result.error = SqlBackupCompatibility::error(result.sets, result.server);
     if (kisCancelled(cancel)) result.error = QString::fromUtf8(u8"已取消读取。");
@@ -181,6 +186,23 @@ QString KisProBackupRestorer::registrationSql(const T3RestoreSelection& selectio
 }
 static bool kisReadAccount(QSqlDatabase& db, const QString& database, QString* name, QString* error)
 {
+    // Core fields read by KisProExportHandler::InitAccountSet/InitAccountSubject/
+    // InitVoucher. Empty voucher tables are valid for a newly created account.
+    const QVector<QPair<QString, QString>> schema = {
+        {"t_SystemProfile", "FCategory,FKey,FValue"},
+        {"t_Account", "FAccountID,FNumber,FName,FDC"},
+        {"t_Voucher", "FVoucherID,FDate,FYear,FPeriod,FGroupID,FNumber"},
+        {"t_VoucherEntry", "FVoucherID,FEntryID,FAccountID,FDC,FAmount,FAmountFor"}
+    };
+    for (const auto& table : schema) {
+        QString detail;
+        if (!kisExecute(db, QStringLiteral("SELECT TOP (0) %1 FROM %2.dbo.%3;")
+            .arg(table.second, kisIdentifier(database), kisIdentifier(table.first)), &detail)) {
+            *error = QString::fromUtf8(u8"金蝶专业版结构校验失败：%1 缺少可读取的关键表或字段。%2")
+                .arg(table.first, detail);
+            return false;
+        }
+    }
     QSqlQuery query(db);
     // Same CompanyName field as KisProExportHandler::InitAccountSet, never infer from filenames.
     if (!query.exec(QStringLiteral("SELECT FValue FROM %1.dbo.t_SystemProfile "
@@ -205,6 +227,10 @@ T3RestoreResult KisProBackupRestorer::restore(const T3SqlConnection& options, co
         { result.error=QString::fromUtf8(u8"请先读取备份并填写服务器数据和日志目录。"); return; }
         if (controlDatabase!="AcctCtl" && !QRegularExpression("^KisProTestControl_[a-f0-9]{32}$").match(controlDatabase).hasMatch())
         { result.error=QString::fromUtf8(u8"控制库名称无效。"); return; }
+        for (const auto& item : selections)
+            if (item.targetDatabase.compare(controlDatabase, Qt::CaseInsensitive) == 0) {
+                result.error=QString::fromUtf8(u8"目标业务库不能与采集控制库同名。"); return;
+            }
         if (kisCancelled(cancel)) { result.stopped=true; return; }
         KisProSqlSession session; if (!session.open(options,&result.error)) return;
         auto current=kisReadSets(session.db,analysis.preparedPath,&result.error);
@@ -262,10 +288,11 @@ T3RestoreResult KisProBackupRestorer::restore(const T3SqlConnection& options, co
             }
             if (item.databaseRestored) {
                 QString name;
+                kisReport(progress,QString::fromUtf8(u8"正在校验 %1 的金蝶专业版业务结构和公司信息...").arg(item.database));
                 item.success=kisReadAccount(session.db,item.database,&name,&item.error)
                     && kisExecute(session.db,registrationSql(selections[i],name,false,controlDatabase),&item.error);
                 if (item.success) kisReport(progress,QString::fromUtf8(u8"恢复及采集登记成功：%1 → %2").arg(name,item.database));
-                else item.error=QString::fromUtf8(u8"数据库 %1 已恢复并保留，但采集登记失败：%2").arg(item.database,item.error);
+                else item.error=QString::fromUtf8(u8"数据库 %1 已恢复并保留，但数据校验或采集登记失败：%2").arg(item.database,item.error);
             }
             item.error=kisRedact(item.error,options); result.items.append(item);
             if (!item.success) { result.error=item.error; return; }

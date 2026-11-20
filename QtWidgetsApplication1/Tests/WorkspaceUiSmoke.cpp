@@ -1,4 +1,4 @@
-#include <QtWidgets>
+﻿#include <QtWidgets>
 #include <QStandardPaths>
 #include <cstdio>
 // This offline harness can inspect navigation without adding a login bypass to the app.
@@ -12,12 +12,17 @@
 #include "Common/LocalSqlInstances.h"
 #include "Common/repairpathsettings.h"
 #include "Common/WecomLocalServer.h"
+#include "subjectbalanceimportwidget.h"
 #include <QLocalSocket>
+#include <QTcpServer>
+#include <QTcpSocket>
 
 void runSqlInstanceTests();
+void runBakRestoreTests();
 void runRestoreCompatibilityTests();
 void runDatabaseCleanerTests();
 void runDatabaseCleanupWidgetTests();
+int runWorkspaceExitTest(const QString &scenario);
 
 static void require(bool condition, const char *message)
 {
@@ -32,6 +37,8 @@ static void settle()
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
+    if (argc == 3 && QString::fromLocal8Bit(argv[1]) == "--exit-test")
+        return runWorkspaceExitTest(QString::fromLocal8Bit(argv[2]));
     require(argc == 2, "screenshot directory argument");
     const QString output = QString::fromLocal8Bit(argv[1]);
     QDir().mkpath(output);
@@ -41,7 +48,10 @@ int main(int argc, char **argv)
     RepairPathSettings::setInputDir(output + "/sample-input");
     RepairPathSettings::setOutputDir(output + "/sample-output");
     QDir().mkpath(RepairPathSettings::inputDir());
+    runBakRestoreTests();
+    if (qEnvironmentVariable("BAK_RESTORE_ONLY") == "1") return 0;
     runRestoreCompatibilityTests();
+    if (qEnvironmentVariable("SQL_RESTORE_COMPATIBILITY_ONLY") == "1") return 0;
     runSqlInstanceTests();
     runDatabaseCleanerTests();
     runDatabaseCleanupWidgetTests();
@@ -131,7 +141,7 @@ int main(int argc, char **argv)
         "shortcut returns to owning category");
 
     // Local page navigation: no processing, clipboard access, upload, deletion or cloud requests.
-    for (int id : {3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}) {
+    for (int id : {3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28}) {
         require(QMetaObject::invokeMethod(&window, "onFunctionSelected", Qt::DirectConnection, Q_ARG(int, id)), "open tool route");
         settle();
         auto *scroll = qobject_cast<QScrollArea*>(mainStack->currentWidget());
@@ -149,16 +159,18 @@ int main(int argc, char **argv)
             require(window.width() == 800 && window.height() == 480, "XinZhongDa supports small window");
             capture("small-xzd");
             window.resize(1440, 960);
+            require(software->findData(29) >= 0, "generic BAK restore is available in unified entry");
+            software->setCurrentIndex(software->findData(29));
+            settle();
+            require(scroll->widget()->findChild<QTableWidget*>("bakEntries"), "generic BAK per-file version table exists");
+            capture("tool-bak");
+            window.resize(800, 480);
+            settle();
+            require(window.width() == 800 && window.height() == 480, "generic BAK supports small window");
+            capture("small-bak");
+            window.resize(1440, 960);
             software->setCurrentIndex(software->findData(20));
             settle();
-        }
-        if (id == 24) {
-            auto *software = scroll->widget()->findChild<QComboBox*>("balanceSoftware");
-            require(software && software->count() == 71, "70 balance import software entries and placeholder");
-            require(!scroll->widget()->findChild<QCheckBox*>("balanceImportZero")->isChecked(), "zero balance disabled by default");
-            software->setCurrentIndex(software->findData(2001));
-            scroll->widget()->findChild<QLineEdit*>("balanceAccountName")->setText(QStringLiteral("示例账套 · 未提交"));
-            require(scroll->widget()->findChild<QLineEdit*>("balanceFile_trialbalance"), "selected software attachment fields");
         }
         if (id == 21) {
             auto* target = scroll->widget()->findChild<QComboBox*>("cleanupTarget");
@@ -181,6 +193,44 @@ int main(int argc, char **argv)
         require(catalog->currentCategory() == FunctionSelectWidget::categoryForFunction(id), "back returns to owning category");
         require(mainStack->currentWidget() == catalog, "back shows catalog");
         window.resize(1440, 960);
+    }
+    // The balance page queries requirements on entry; supply loopback data instead of a cloud host.
+    {
+        QTcpServer server;
+        require(server.listen(QHostAddress::LocalHost), "balance requirements loopback listener");
+        const QJsonArray rules{QJsonObject{{"softwareId", 99999}, {"softwareName", "Template"},
+            {"subjectStatus", 3}, {"trialBalanceStatus", 1}, {"voucherStatus", 2}, {"remark", ""}}};
+        const auto body = QJsonDocument(QJsonObject{{"state", 1000}, {"data", rules}}).toJson();
+        QObject::connect(&server, &QTcpServer::newConnection, &server, [&server, body]() {
+            auto *socket = server.nextPendingConnection();
+            QObject::connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            QObject::connect(socket, &QTcpSocket::readyRead, socket, [socket, body]() {
+                const auto request = socket->property("request").toByteArray() + socket->readAll();
+                socket->setProperty("request", request);
+                if (!request.contains("\r\n\r\n") || socket->property("handled").toBool()) return;
+                require(request.startsWith("GET /api/ImportFromOther/GetSoftwareFileRequirements "), "only requirements GET permitted");
+                socket->setProperty("handled", true);
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                    + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->disconnectFromHost();
+            });
+        });
+        auto *requirements = new BalanceImportRequirements(&window, output + "/requirements");
+        requirements->load("http://127.0.0.1:" + QString::number(server.serverPort()));
+        QElapsedTimer timer; timer.start();
+        while (requirements->loading() && timer.elapsed() < 6000) { QApplication::processEvents(); QThread::msleep(1); }
+        require(!requirements->catalog().isEmpty(), "balance requirements loaded offline");
+        auto *page = new SubjectBalanceImportWidget(&data, &window, output + "/balance-history.json", requirements);
+        auto *scroll = new QScrollArea(mainStack);
+        scroll->setWidgetResizable(true); scroll->setWidget(page);
+        mainStack->addWidget(scroll); mainStack->setCurrentWidget(scroll);
+        window.findChild<QLabel*>("headerTitle")->setText(QStringLiteral("科目余额表导账"));
+        auto *software = page->findChild<QComboBox*>("balanceSoftware");
+        require(software && software->count() == 2, "server software entry and placeholder");
+        require(!page->findChild<QCheckBox*>("balanceImportZero")->isChecked(), "zero balance disabled by default");
+        software->setCurrentIndex(software->findData(99999));
+        require(page->findChild<QLineEdit*>("balanceFile_trialbalance"), "dynamic file fields");
+        capture("tool-24"); window.resize(800, 480); capture("small-24"); window.resize(1440, 960);
     }
     // Cloud tables are instantiated directly so that loadAccountSetList never issues a request.
     for (int id : {1, 2}) {
@@ -276,6 +326,6 @@ int main(int argc, char **argv)
     }
     fprintf(stdout, "PASS: workspace API auto-start, lazy browser, background dispatch and reader callback.\n");
     fprintf(stdout, "PASS: environment palette/menu/icon, task guard, close-to-tray and restore.\n");
-    fprintf(stdout, "PASS: 23 tool entries, 5 categories, search, 19 local routes and 5 restore aliases, category return, small windows, cloud tables and dialog.\n");
+    fprintf(stdout, "PASS: 23 tool entries, 5 categories, search, 18 local routes, mocked balance page and 5 restore aliases, category return, small windows, cloud tables and dialog.\n");
     return 0;
 }

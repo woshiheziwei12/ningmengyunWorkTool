@@ -36,7 +36,7 @@ private slots:
         T3BackupSet backup; backup.position=1; backup.databaseName="AIS20150212103229";
         T3RestoreSelection item{backup,"AIS_Test_123"};
         QVERIFY(KisProBackupRestorer::validateSelections({item}).isEmpty());
-        for (const QString& name : {QString("master"),QString("AcctCtl"),QString("OtherDB"),QString("AIS_x';DROP"),QString("AIS")}) {
+        for (const QString& name : {QString("master"),QString("model"),QString("msdb"),QString("tempdb"),QString("aCcTcTl"),QString("AIS_x';DROP"),QString("bad/name"),QString("bad name")}) {
             auto bad=item; bad.targetDatabase=name;
             QVERIFY(!KisProBackupRestorer::validateSelections({bad}).isEmpty());
         }
@@ -54,6 +54,16 @@ private slots:
         }
         QVERIFY(KisProBackupRestorer::resolveSource(directory.path(),&error).isEmpty());
         QVERIFY(!error.isEmpty());
+    }
+    void nonAisBackupNames()
+    {
+        T3BackupSet backup; backup.position=1; backup.databaseName="UE105662772022120715574362";
+        T3RestoreSelection item{backup,backup.databaseName};
+        QVERIFY2(KisProBackupRestorer::validateSelections({item}).isEmpty(),
+            qPrintable(KisProBackupRestorer::validateSelections({item})));
+        item.backup.databaseName=QString::fromUtf8(u8"原账套（副本）");
+        QVERIFY(KisProBackupRestorer::validateSelections({item}).isEmpty());
+        QVERIFY(!KisProBackupRestorer::registrationSql(item,QString::fromUtf8(u8"测试公司")).isEmpty());
     }
     void widgetDropAndInstanceSwitch()
     {
@@ -98,18 +108,19 @@ private slots:
         QVERIFY2(analysis.success, qPrintable(analysis.error)); QCOMPARE(analysis.sets.size(), 1);
 
         const QString token = QUuid::createUuid().toString(QUuid::Id128);
-        const QString target = "AIS_Test_" + token, control = "KisProTestControl_" + token;
+        const QString target = "UE_Test_" + token, control = "KisProTestControl_" + token;
+        const QString invalidTarget = "UE_Invalid_" + token;
         const QString cn = "KisProTest_" + token;
         QSqlDatabase db = QSqlDatabase::addDatabase("QODBC", cn);
         db.setDatabaseName(T3BackupRestorer::connectionString(options)); QVERIFY2(db.open(), qPrintable(db.lastError().text()));
         const auto lit = T3BackupRestorer::quoteLiteral;
         const auto ident = T3BackupRestorer::quoteIdentifier;
         // Before any mutation prove both random test names are unused, then capture exact file ownership.
-        { QSqlQuery q(db); QVERIFY(q.exec("SELECT DB_ID(" + lit(target) + "),DB_ID(" + lit(control) + ")"));
-          QVERIFY(q.next()); QVERIFY(q.value(0).isNull() && q.value(1).isNull()); }
+        { QSqlQuery q(db); QVERIFY(q.exec("SELECT DB_ID(" + lit(target) + "),DB_ID(" + lit(control) + "),DB_ID(" + lit(invalidTarget) + ")"));
+          QVERIFY(q.next()); QVERIFY(q.value(0).isNull() && q.value(1).isNull() && q.value(2).isNull()); }
         QMap<QString, QStringList> ownedFiles;
         const auto captureFiles = [&]() {
-            for (const auto& name : {target, control}) {
+            for (const auto& name : {target, control, invalidTarget}) {
                 QSqlQuery q(db); if (!q.exec("SELECT physical_name FROM sys.master_files WHERE database_id=DB_ID(" + lit(name) + ")")) qFatal("Cannot record test ownership");
                 QStringList files; while (q.next()) files.append(q.value(0).toString());
                 if (!files.isEmpty()) ownedFiles.insert(name, files);
@@ -135,6 +146,8 @@ private slots:
         auto stopped = restore({selected}, []() { return true; }); QVERIFY(stopped.stopped); QVERIFY(stopped.items.isEmpty());
         auto changed = selected; changed.backup.backupSetId = "wrong-guid";
         const auto stale = restore({changed}); QVERIFY(!stale.error.isEmpty()); QVERIFY(stale.items.isEmpty());
+        auto controlTarget = selected; controlTarget.targetDatabase=control;
+        const auto collision = restore({controlTarget}); QVERIFY(!collision.error.isEmpty()); QVERIFY(collision.items.isEmpty());
         QVERIFY(execute(db, T3BackupRestorer::controlDatabaseSql(analysis.server.dataDirectory,
             analysis.server.logDirectory, token, control))); captureFiles();
         QVERIFY(execute(db, "USE " + ident(control) + "; CREATE TABLE dbo.t_ad_kdAccount_gl(FDBName nvarchar(128)); USE master;"));
@@ -157,6 +170,38 @@ private slots:
             QVERIFY(!execute(db,KisProBackupRestorer::registrationSql(selected,accountName,true,control)));
         }
         QVERIFY(execute(db,"DBCC CHECKDB ("+ident(target)+") WITH NO_INFOMSGS;"));
+        // A company name alone must not identify an arbitrary database as KIS Pro.
+        // Back up only our isolated control database, with deliberately incomplete
+        // business fields, then exercise the full restore -> validation -> register path.
+        QTemporaryDir invalidBackup(QDir(qEnvironmentVariable("KISPRO_TEST_STAGING")).filePath("invalid-XXXXXX"));
+        QVERIFY(invalidBackup.isValid());
+        const QString invalidPath=QDir::toNativeSeparators(invalidBackup.filePath("invalid.bak"));
+        QVERIFY(execute(db,"USE "+ident(control)+"; "
+            "CREATE TABLE dbo.t_SystemProfile(FCategory nvarchar(40),FKey nvarchar(40),FValue nvarchar(255)); "
+            "INSERT INTO dbo.t_SystemProfile VALUES(N'General',N'CompanyName',N'Not a KIS account'); "
+            "CREATE TABLE dbo.t_Account(FAccountID int,FNumber nvarchar(40),FName nvarchar(40),FDC int); "
+            "CREATE TABLE dbo.t_Voucher(FVoucherID int,FDate datetime,FYear int,FPeriod int,FGroupID int,FNumber int); "
+            "CREATE TABLE dbo.t_VoucherEntry(FVoucherID int,FEntryID int,FAccountID int,FDC int,FAmountFor money); "
+            "USE master; BACKUP DATABASE "+ident(control)+" TO DISK="+lit(invalidPath)+" WITH COPY_ONLY,CHECKSUM;"));
+        const auto invalidAnalysis=KisProBackupRestorer::analyze(options,invalidPath,
+            qEnvironmentVariable("KISPRO_TEST_STAGING"),{},progress);
+        QVERIFY2(invalidAnalysis.success,qPrintable(invalidAnalysis.error));
+        QCOMPARE(invalidAnalysis.sets.size(),1);
+        const auto invalidResult=KisProBackupRestorer::restore(options,invalidAnalysis,
+            {{invalidAnalysis.sets.first(),invalidTarget}},analysis.server.dataDirectory,
+            analysis.server.logDirectory,{},progress,control);
+        captureFiles();
+        QCOMPARE(invalidResult.items.size(),1);
+        QVERIFY(invalidResult.items.first().databaseRestored);
+        QVERIFY(!invalidResult.items.first().success);
+        QVERIFY(invalidResult.error.contains("t_VoucherEntry"));
+        {
+            QSqlQuery q(db);
+            QVERIFY(q.exec("SELECT state_desc FROM sys.databases WHERE name="+lit(invalidTarget)));
+            QVERIFY(q.next()); QCOMPARE(q.value(0).toString(),QString("ONLINE")); q.finish();
+            QVERIFY(q.exec("SELECT COUNT(*) FROM "+ident(control)+".dbo.t_ad_kdAccount_gl WHERE FDBName="+lit(invalidTarget)));
+            QVERIFY(q.next()); QCOMPARE(q.value(0).toInt(),0);
+        }
         qInfo() << "Real restore, importer control fields, duplicate/cancel guards and CHECKDB passed; cleaning test databases.";
     }
 };

@@ -2,6 +2,7 @@
 #include <functional>
 
 #include <QDate>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
 #include <QMap>
@@ -14,6 +15,7 @@ struct BalanceImportFileSlot
 {
     QString key, label, notes;
     bool required = false;
+    bool special = false;
     QStringList extensions;
 };
 
@@ -25,6 +27,7 @@ struct BalanceImportSoftware
     bool supportsAuxiliaryFiles = false;
     QString notes;
     QList<int> accountingStandards;
+    bool requirementsAvailable = false;
 };
 
 struct BalanceImportSession
@@ -53,10 +56,40 @@ struct BalanceImportOutcome
 namespace SubjectBalanceImport
 {
 QList<BalanceImportSoftware> softwareCatalog(QString *error = nullptr);
-QString validate(const BalanceImportInput &input, const BalanceImportSession &session);
+QList<BalanceImportSoftware> applyRequirements(const QJsonArray &requirements, QString *error = nullptr);
+QString validate(const BalanceImportInput &input, const BalanceImportSession &session,
+                 const QList<BalanceImportSoftware> &catalog);
 QUrl submitUrl(const BalanceImportInput &input, const QString &host, int serviceId);
 BalanceImportOutcome parseOutcome(const QByteArray &body, const QString &expectedId);
 }
+
+// Anonymous file requirements, with validated disk and in-memory caches isolated by endpoint.
+class BalanceImportRequirements : public QObject
+{
+    Q_OBJECT
+public:
+    explicit BalanceImportRequirements(QObject *parent = nullptr, const QString &cacheDirectory = QString());
+    ~BalanceImportRequirements();
+    void load(const QString &host, bool refresh = false);
+    QString host() const { return m_host; }
+    bool loading() const { return m_loading; }
+    QList<BalanceImportSoftware> catalog() const { return m_current.catalog; }
+    QString message() const { return m_current.message; }
+signals:
+    void changed();
+private:
+    struct Entry {
+        QList<BalanceImportSoftware> catalog;
+        QString message;
+    };
+    void cancel();
+    QNetworkAccessManager m_network;
+    QPointer<QNetworkReply> m_reply;
+    QString m_cacheDirectory, m_host;
+    QMap<QString, Entry> m_cache;
+    Entry m_current;
+    bool m_loading = false;
+};
 
 // Owns one submit/query operation. Stopping queries never sends a cancellation to the server.
 class SubjectBalanceImportClient : public QObject
@@ -67,7 +100,8 @@ public:
     ~SubjectBalanceImportClient();
     bool busy() const;
     void setTokenProvider(std::function<QString()> provider) { m_tokenProvider = std::move(provider); }
-    void submit(const BalanceImportInput &input, const BalanceImportSession &session);
+    void submit(const BalanceImportInput &input, const BalanceImportSession &session,
+                const QList<BalanceImportSoftware> &catalog);
     void query(const QString &importId, const BalanceImportSession &session);
     void stopQuery();
 

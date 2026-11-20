@@ -1,10 +1,12 @@
 ﻿#include "access2003converterwidget.h"
 
 #include "Common/access2003converter.h"
+#include "Common/Jet3Recovery.h"
 #include "Common/logger.h"
 #include "Common/repairinputfileutils.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QFileDialog>
@@ -54,6 +56,7 @@ Access2003ConverterWidget::Access2003ConverterWidget(GlobalData *globalData, QWi
       m_pSelectionSummaryLabel(nullptr),
       m_pOutputDirectoryEdit(nullptr),
       m_pPasswordEdit(nullptr),
+      m_pModeCombo(nullptr),
       m_pFileList(nullptr),
       m_pProgressBar(nullptr),
       m_pLogEdit(nullptr),
@@ -80,11 +83,13 @@ void Access2003ConverterWidget::setupUi()
     QVBoxLayout *noticeLayout = new QVBoxLayout(noticeFrame);
     noticeLayout->setContentsMargins(16, 13, 16, 13);
     noticeLayout->setSpacing(5);
-    QLabel *noticeTitle = new QLabel(QStringLiteral("调用本机 Access 2003 转换为 Jet 4.0"), noticeFrame);
+    QLabel *noticeTitle = new QLabel(QStringLiteral("转换为 Jet 4.0 数据库"), noticeFrame);
     noticeTitle->setObjectName(QStringLiteral("labelPageTitle"));
     noticeLayout->addWidget(noticeTitle);
     QLabel *noticeText = new QLabel(
-        QStringLiteral("支持 AIS、AIY、MDB；源文件不会被覆盖。转换结果统一命名为：源文件名_03转换后.ais。"),
+        QStringLiteral("支持 AIS、AIY、MDB；保留源文件，结果另存为源文件名_03转换后.ais。\n"
+                       "数据恢复优先模式适合查询、导账：恢复 Jet3 数据表并逐字段校验，Jet4 文件直接复制。"
+                       "恢复结果不包含原权限、关系和应用对象，请勿替换原账套继续记账。"),
         noticeFrame);
     noticeText->setWordWrap(true);
     noticeLayout->addWidget(noticeText);
@@ -92,12 +97,19 @@ void Access2003ConverterWidget::setupUi()
     m_pAccessStatusLabel->setWordWrap(true);
     QString registrationName;
     const bool registered = Access2003Converter::isAccess2003Registered(&registrationName);
-    m_pAccessStatusLabel->setText(registered
-        ? QStringLiteral("● 已检测到 %1（Access 2003）").arg(registrationName)
-        : QStringLiteral("● 未检测到 Access.Application.11，请先安装或修复 Access 2003"));
-    m_pAccessStatusLabel->setProperty("state", registered ? "ready" : "error");
+    const bool recoveryAvailable=isJet3RecoveryAvailable();
+    m_pAccessStatusLabel->setText((recoveryAvailable?QStringLiteral("● 数据恢复组件就绪（需要本机 32 位 Jet/DAO）"):
+        QStringLiteral("● 数据恢复组件缺失，请部署完整工具目录"))+
+        (registered?QStringLiteral("；Access 2003 可用"):QStringLiteral("；Access 2003 未安装（数据恢复模式可独立使用）")));
+    m_pAccessStatusLabel->setProperty("state", recoveryAvailable || registered ? "ready" : "error");
     noticeLayout->addWidget(m_pAccessStatusLabel);
     layout->addWidget(noticeFrame);
+
+    m_pModeCombo=new QComboBox(this);
+    m_pModeCombo->setObjectName(QStringLiteral("access2003ConversionMode"));
+    m_pModeCombo->addItem(QStringLiteral("数据恢复优先（适合查询、导账）"));
+    m_pModeCombo->addItem(QStringLiteral("Access 2003 转换（原方式）"));
+    layout->addWidget(m_pModeCombo);
 
     QHBoxLayout *selectLayout = new QHBoxLayout();
     selectLayout->setSpacing(8);
@@ -140,8 +152,12 @@ void Access2003ConverterWidget::setupUi()
     QLabel *passwordLabel = new QLabel(QStringLiteral("数据库/Access 密码"), this);
     m_pPasswordEdit = new QLineEdit(this);
     m_pPasswordEdit->setEchoMode(QLineEdit::Password);
-    m_pPasswordEdit->setPlaceholderText(QStringLiteral("留空时自动使用内置默认密码；手工输入可覆盖默认值"));
+    m_pPasswordEdit->setPlaceholderText(QStringLiteral("仅 Access 转换使用；留空使用原默认密码"));
     m_pPasswordEdit->setClearButtonEnabled(true);
+    m_pPasswordEdit->setEnabled(false);
+    connect(m_pModeCombo,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this](int index){
+        m_pPasswordEdit->setEnabled(!m_running && index==1);
+    });
     passwordLayout->addWidget(passwordLabel);
     passwordLayout->addWidget(m_pPasswordEdit, 1);
     layout->addLayout(passwordLayout);
@@ -324,7 +340,8 @@ void Access2003ConverterWidget::setRunning(bool running)
     m_pSelectDirectoryButton->setEnabled(!running);
     m_pSelectOutputButton->setEnabled(!running);
     m_pOutputDirectoryEdit->setEnabled(!running);
-    m_pPasswordEdit->setEnabled(!running);
+    m_pModeCombo->setEnabled(!running);
+    m_pPasswordEdit->setEnabled(!running && m_pModeCombo->currentIndex()==1);
     m_pClearButton->setEnabled(!running);
     m_pBackButton->setEnabled(!running);
     setAcceptDrops(!running);
@@ -342,7 +359,8 @@ void Access2003ConverterWidget::onStartConversion()
         QMessageBox::warning(this, QStringLiteral("缺少输出目录"), QStringLiteral("请先选择输出目录。"));
         return;
     }
-    if (!Access2003Converter::isAccess2003Registered())
+    const auto mode=m_pModeCombo->currentIndex()==0?Access2003ConversionMode::PreferDataRecovery:Access2003ConversionMode::Access2003;
+    if (mode==Access2003ConversionMode::Access2003 && !Access2003Converter::isAccess2003Registered())
     {
         QMessageBox::warning(this, QStringLiteral("未检测到 Access 2003"),
                              QStringLiteral("没有找到 Access.Application.11。请确认 Access 2003 已正确安装。"));
@@ -356,14 +374,14 @@ void Access2003ConverterWidget::onStartConversion()
     setRunning(true);
     m_pProgressBar->setRange(0, 0);
     m_pLogEdit->clear();
-    m_pLogEdit->append(QStringLiteral("准备调用 Access 2003，批量转换 %1 个文件...").arg(sourcePaths.size()));
+    m_pLogEdit->append(QStringLiteral("准备批量处理 %1 个文件，方式：%2").arg(sourcePaths.size()).arg(m_pModeCombo->currentText()));
     m_pLogEdit->append(QStringLiteral("输出目录：%1").arg(QDir::toNativeSeparators(outputDirectory)));
     AppLogger::operation(QStringLiteral("启动 Access 2003 批量转换 count=%1 output=%2")
         .arg(sourcePaths.size())
         .arg(QDir::toNativeSeparators(outputDirectory)));
 
-    QThread *thread = QThread::create([result, sourcePaths, outputDirectory, password]() mutable {
-        *result = Access2003Converter::convertFiles(sourcePaths, outputDirectory, password);
+    QThread *thread = QThread::create([result, sourcePaths, outputDirectory, password, mode]() mutable {
+        *result = Access2003Converter::convertFiles(sourcePaths, outputDirectory, password,mode);
         password.fill(QChar('\0'));
         password.clear();
     });
@@ -372,17 +390,17 @@ void Access2003ConverterWidget::onStartConversion()
         m_pProgressBar->setRange(0, qMax(1, result->items.size()));
         m_pProgressBar->setValue(result->items.size());
 
-        if (!result->accessStarted)
+        if (!result->batchStarted)
         {
             m_pLogEdit->append(QStringLiteral("失败：") + result->startupError);
             m_pSelectionSummaryLabel->setText(QStringLiteral("转换未启动：") + result->startupError);
-            QMessageBox::warning(this, QStringLiteral("Access 2003 启动失败"), result->startupError);
+            QMessageBox::warning(this, QStringLiteral("转换未启动"), result->startupError);
             return;
         }
 
         const QString versionText = result->accessVersion.isEmpty()
             ? QStringLiteral("11.x") : result->accessVersion;
-        m_pLogEdit->append(QStringLiteral("Access 版本：%1").arg(versionText));
+        if(result->accessStarted) m_pLogEdit->append(QStringLiteral("Access 版本：%1").arg(versionText));
         int successCount = 0;
         int failureCount = 0;
         for (const Access2003ConversionItem &item : result->items)
@@ -395,6 +413,11 @@ void Access2003ConverterWidget::onStartConversion()
                          QDir::toNativeSeparators(item.destinationPath),
                          item.copiedBecauseAlreadyCompatible
                             ? QStringLiteral("（源文件已是 Jet 4.0，安全复制）") : QString()));
+                if(item.recoveredData) {
+                    m_pLogEdit->append(QStringLiteral("  数据恢复：%1 张表，%2 条记录，逐字段校验通过\n  验证报告：%3\n  仅供查询、导账，不直接替换原账套继续记账。")
+                        .arg(item.recoveredTables).arg(item.recoveredRows).arg(QDir::toNativeSeparators(item.recoveryReportPath)));
+                    for(const auto& warning:item.warnings) m_pLogEdit->append(QStringLiteral("  未完整恢复：")+warning.toHtmlEscaped());
+                }
             }
             else
             {

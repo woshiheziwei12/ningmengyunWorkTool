@@ -1,0 +1,31 @@
+{
+  "version": "1.0.1",
+  "source": "https://github.com/mdbtools/mdbtools/releases/download/v1.0.1/mdbtools-1.0.1.zip",
+  "source_sha256": "4ab12def240c96717a32a05e26060f99de8b3bdc83661a125c997c2011093020",
+  "platform": "Windows x86",
+  "toolchain": "MSVC v141 (14.16.27023), /TC /Gy, no /GL",
+  "release": "/O2 /MD",
+  "headers": [
+    "mdbfakeglib.h",
+    "mdbtools.h",
+    "strings.h",
+    "unistd.h"
+  ],
+  "libraries": {
+    "mdbjet3.lib": "41b2a10965ed2efbb8af1469de3643ddcbfaa987f79348139fc1216d8b406a9a"
+  },
+  "validation": {
+    "compiler": "MSVC 19.16 x86 (v141)",
+    "configurations": [
+      "Release /MD"
+    ],
+    "header_audit": "/showIncludes: the four retained SDK headers only",
+    "original_jet3_scan": {
+      "tables": 168,
+      "rows": 6165,
+      "release_exit": 0
+    },
+    "v141": "native probe linked and executed with v141 x86"
+  },
+  "delivery": "Release-only per product requirement"
+}

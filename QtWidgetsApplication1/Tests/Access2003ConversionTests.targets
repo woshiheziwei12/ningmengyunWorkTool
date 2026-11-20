@@ -1,0 +1,17 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Remove="@(ClCompile)" />
+    <QtMoc Remove="@(QtMoc)" />
+    <QtRcc Remove="@(QtRcc)" />
+    <QtUic Remove="@(QtUic)" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Access2003ConversionTests.cpp">
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\access2003converter.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\Jet3Recovery.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Access2003ConversionUiTests.cpp"><AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <ClCompile Include="$(MSBuildProjectDirectory)\access2003converterwidget.cpp" />
+    <QtMoc Include="$(MSBuildProjectDirectory)\access2003converterwidget.h" />
+  </ItemGroup>
+  <ItemDefinitionGroup><Link><SubSystem>Console</SubSystem></Link></ItemDefinitionGroup>
+</Project>

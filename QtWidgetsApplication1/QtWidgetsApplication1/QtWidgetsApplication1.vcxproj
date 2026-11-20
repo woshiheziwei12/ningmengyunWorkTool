@@ -125,6 +125,10 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="BackupRestoreWidget.h" />
+    <QtMoc Include="BakRestoreWidget.h" />
+    <ClCompile Include="BakRestoreWidget.cpp" />
+    <ClInclude Include="Common\BakBackupRestorer.h" />
+    <ClCompile Include="Common\BakBackupRestorer.cpp" />
     <QtMoc Include="XinZhongDaRestoreWidget.h" />
     <ClCompile Include="XinZhongDaRestoreWidget.cpp" />
     <ClInclude Include="Common\XinZhongDaBackupRestorer.h" />
@@ -231,6 +235,8 @@
     <ClCompile Include="Common\importpackageuploader.cpp" />
     <ClCompile Include="Common\importpackagehistory.cpp" />
     <ClCompile Include="Common\access2003converter.cpp" />
+    <ClCompile Include="Common\Jet3Recovery.cpp" />
+    <ClInclude Include="Common\Jet3Recovery.h" />
     <ClCompile Include="Common\usertoken.cpp" />
     <ClCompile Include="Common\globaldata.cpp" />
     <ClInclude Include="httprequesthelper.h" />
@@ -262,6 +268,15 @@
   <Target Name="DeployWecomWebViewLoader" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\Tools\Read-WecomDocument.ps1" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\ThirdParty\WebView2\x86\WebView2Loader.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="BuildJetRecovery" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' and '$(BridgeTests)'!='true' and '$(CredentialTests)'!='true'">
+    <PropertyGroup>
+      <RecoveryOutDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))</RecoveryOutDir>
+      <RecoveryIntDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntDir)', 'JetRecovery'))</RecoveryIntDir>
+    </PropertyGroup>
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\Tools\JetRecovery\LemonJetRecovery.vcxproj" Targets="Build" BuildInParallel="false"
+      RemoveProperties="ForceImportBeforeCppTargets;AccessConversionTests;SmokeTest;BridgeTests;CredentialTests"
+      Properties="Configuration=Release;Platform=Win32;OutDir=$(RecoveryOutDir);IntDir=$(RecoveryIntDir);QtIntDir=$(RecoveryIntDir)qt\;TLogLocation=$(RecoveryIntDir)tlog\;MSBuildProjectExtensionsPath=$(RecoveryIntDir);TargetName=LemonJetRecovery" />
   </Target>
   <Target Name="DeployLocalSqlConfiguration" AfterTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\SqlServer211.local.json') and '$(CopyLocalSqlConfiguration)' == 'true'">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\SqlServer211.local.json" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />

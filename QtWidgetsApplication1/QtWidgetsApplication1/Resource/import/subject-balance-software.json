@@ -7,7 +7,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -16,7 +15,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -25,7 +23,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -33,7 +30,7 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "科目、余额和凭证均必填；凭证仅支持“凭证导入模板”，不支持直接导出的凭证列表。",
+    "notes": "凭证仅支持“凭证导入模板”，不支持直接导出的凭证列表。",
     "uncertain": false
   },
   {
@@ -44,7 +41,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -53,7 +49,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -62,7 +57,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -81,7 +75,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -90,7 +83,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -99,7 +91,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -118,7 +109,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -127,7 +117,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -136,7 +125,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -155,7 +143,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -164,7 +151,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -183,7 +169,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -192,7 +177,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -211,7 +195,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -220,7 +203,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -239,7 +221,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -248,7 +229,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -257,7 +237,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -276,7 +255,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -285,7 +263,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -304,7 +281,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -313,7 +289,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -332,7 +307,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -341,7 +315,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -350,7 +323,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -369,7 +341,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx",
@@ -379,7 +350,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -388,7 +358,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx",
@@ -409,7 +378,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -418,7 +386,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -437,7 +404,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -446,7 +412,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -465,7 +430,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -474,7 +438,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -483,7 +446,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -502,7 +464,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -511,7 +472,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -530,7 +490,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -539,7 +498,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -558,7 +516,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -567,7 +524,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -586,7 +542,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -595,7 +550,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -614,7 +568,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -623,7 +576,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -642,7 +594,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -651,7 +602,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -670,7 +620,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -679,7 +628,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -698,7 +646,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -707,7 +654,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -726,7 +672,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -735,7 +680,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -754,7 +698,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -763,7 +706,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -782,7 +724,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -791,7 +732,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -810,7 +750,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -819,7 +758,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -838,7 +776,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -847,7 +784,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -866,7 +802,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -875,7 +810,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -894,7 +828,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -903,7 +836,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -922,7 +854,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -931,7 +862,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -950,7 +880,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -959,7 +888,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -978,7 +906,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -987,7 +914,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1006,7 +932,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1015,7 +940,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1034,7 +958,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1043,7 +966,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1062,7 +984,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1071,7 +992,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1090,7 +1010,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1099,7 +1018,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1118,7 +1036,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1127,7 +1044,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx",
@@ -1148,17 +1064,15 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
         ],
-        "notes": "科目为 TXT 时必填；可上传包含余额与凭证工作表的组合工作簿。"
+        "notes": "可上传包含余额与凭证工作表的组合工作簿。"
       },
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx",
@@ -1167,7 +1081,7 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "当前服务从组合工作簿读取凭证，不读取独立凭证附件。科目 TXT 模式需同时上传余额/凭证组合工作簿；科目 Excel 模式从科目附件读取余额，从余额附件读取凭证。",
+    "notes": "科目支持 TXT 或 Excel；余额附件可使用包含余额与凭证工作表的组合工作簿，具体文件组合由服务端校验。",
     "uncertain": true
   },
   {
@@ -1178,7 +1092,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1187,7 +1100,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1196,7 +1108,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1215,7 +1126,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1224,7 +1134,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1243,7 +1152,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1252,7 +1160,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx",
@@ -1262,7 +1169,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1281,7 +1187,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1290,7 +1195,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1299,7 +1203,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1318,7 +1221,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1327,7 +1229,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1346,7 +1247,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1355,7 +1255,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1374,7 +1273,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1383,7 +1281,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1402,7 +1299,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1411,7 +1307,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1430,7 +1325,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1439,7 +1333,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1458,7 +1351,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1467,7 +1359,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1476,7 +1367,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1495,7 +1385,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1504,7 +1393,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1523,7 +1411,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1532,7 +1419,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1551,7 +1437,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1560,7 +1445,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1569,7 +1453,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1588,7 +1471,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1597,7 +1479,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1616,7 +1497,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1625,7 +1505,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1644,7 +1523,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1653,7 +1531,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1672,7 +1549,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1681,7 +1557,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1700,7 +1575,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1709,7 +1583,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1718,7 +1591,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1737,7 +1609,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1746,7 +1617,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1754,7 +1624,7 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "科目数据应位于凭证附件的“科目备查表”工作表中，无需独立科目附件。",
+    "notes": "科目数据可位于凭证附件的“科目备查表”工作表中。",
     "uncertain": false
   },
   {
@@ -1765,7 +1635,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1774,7 +1643,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1793,7 +1661,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1802,7 +1669,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1811,7 +1677,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1830,7 +1695,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1839,7 +1703,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1848,7 +1711,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1867,7 +1729,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1876,7 +1737,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1895,7 +1755,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1904,7 +1763,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1923,7 +1781,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1932,7 +1789,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1941,7 +1797,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1960,7 +1815,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1969,7 +1823,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1978,7 +1831,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -1997,7 +1849,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2006,7 +1857,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2015,7 +1865,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2023,7 +1872,6 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "当前解析器要求科目、余额和凭证三类附件。",
     "uncertain": false
   },
   {
@@ -2034,7 +1882,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2043,7 +1890,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2052,7 +1898,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2071,7 +1916,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2080,7 +1924,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2089,7 +1932,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2097,7 +1939,6 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "科目、余额和凭证均必填。",
     "uncertain": false
   },
   {
@@ -2108,7 +1949,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2117,7 +1957,6 @@
       {
         "key": "subject",
         "label": "科目数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2126,7 +1965,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2134,7 +1972,6 @@
       }
     ],
     "supportsAuxiliaryFiles": false,
-    "notes": "科目和凭证必填；余额/期初表可选。",
     "uncertain": false
   },
   {
@@ -2145,7 +1982,6 @@
       {
         "key": "trialbalance",
         "label": "科目余额表 / 期初表",
-        "required": true,
         "extensions": [
           ".xls",
           ".xlsx"
@@ -2154,7 +1990,6 @@
       {
         "key": "voucher",
         "label": "凭证数据",
-        "required": false,
         "extensions": [
           ".xls",
           ".xlsx"

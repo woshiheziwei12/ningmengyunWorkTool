@@ -3,12 +3,16 @@
 #include "../httprequesthelper.h"
 
 #include <QFile>
+#include <QCryptographicHash>
+#include <QDir>
 #include <QFileInfo>
 #include <QHttpMultiPart>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QSet>
+#include <QSaveFile>
+#include <QStandardPaths>
 #include <QUrlQuery>
 #include <QUuid>
 
@@ -61,7 +65,6 @@ QList<BalanceImportSoftware> SubjectBalanceImport::softwareCatalog(QString *erro
             slot.key = field.value("key").toString();
             slot.label = field.value("label").toString();
             slot.notes = field.value("notes").toString();
-            slot.required = field.value("required").toBool();
             for (const auto &extension : field.value("extensions").toArray())
                 slot.extensions.append(extension.toString().toLower().remove('.'));
             if (slot.key.isEmpty() || slot.label.isEmpty() || slot.extensions.isEmpty() || keys.contains(slot.key)) {
@@ -82,7 +85,177 @@ QList<BalanceImportSoftware> SubjectBalanceImport::softwareCatalog(QString *erro
     return catalog;
 }
 
-QString SubjectBalanceImport::validate(const BalanceImportInput &input, const BalanceImportSession &session)
+QList<BalanceImportSoftware> SubjectBalanceImport::applyRequirements(const QJsonArray &requirements, QString *error)
+{
+    if (error) error->clear();
+    QMap<int, QJsonObject> byId;
+    for (const auto &value : requirements) {
+        const auto row = value.toObject();
+        const auto id = row.value("softwareId");
+        bool valid = value.isObject() && id.isDouble() && id.toInt(-1) > 0 && id.toDouble() == id.toInt(-1)
+            && row.value("softwareName").isString() && !row.value("softwareName").toString().trimmed().isEmpty()
+            && row.value("remark").isString() && !byId.contains(id.toInt());
+        for (const auto &key : {"subjectStatus", "trialBalanceStatus", "voucherStatus"}) {
+            const auto status = row.value(key);
+            valid = valid && status.isDouble() && status.toInt() >= 1 && status.toInt() <= 4
+                && status.toDouble() == status.toInt();
+        }
+        if (!valid) {
+            if (error) *error = QStringLiteral("文件要求记录无效或软件编号重复");
+            return {};
+        }
+        byId.insert(id.toInt(), row);
+    }
+    if (byId.isEmpty()) {
+        if (error) *error = QStringLiteral("文件要求列表为空");
+        return {};
+    }
+    QMap<int, BalanceImportSoftware> localDescriptions;
+    for (const auto &software : softwareCatalog()) localDescriptions.insert(software.id, software);
+    QList<BalanceImportSoftware> catalog;
+    const QStringList keys{"subject", "trialbalance", "voucher"};
+    const QStringList fields{"subjectStatus", "trialBalanceStatus", "voucherStatus"};
+    const QStringList labels{QStringLiteral("科目表"), QStringLiteral("科目余额表 / 期初表"), QStringLiteral("凭证表")};
+    // The response defines membership, names and order; local descriptions only enrich known IDs.
+    for (const auto &value : requirements) {
+        const auto row = value.toObject();
+        const int id = row.value("softwareId").toInt();
+        auto software = localDescriptions.value(id);
+        software.id = id;
+        software.name = row.value("softwareName").toString().trimmed();
+        software.requirementsAvailable = true;
+        for (int index = 0; index < keys.size(); ++index) {
+            const auto key = keys.at(index);
+            const int status = row.value(fields.at(index)).toInt();
+            BalanceImportFileSlot slot;
+            slot.key = key;
+            slot.label = labels.at(index);
+            slot.extensions = QStringList{"xls", "xlsx"};
+            // Preserve local format guidance, including software-specific TXT/ZIP inputs.
+            for (int i = software.files.size() - 1; i >= 0; --i) {
+                if (software.files.at(i).key == key) slot = software.files.takeAt(i);
+            }
+            slot.required = status == 1;
+            slot.special = status == 4;
+            if (status != 3) software.files.append(slot);
+        }
+        catalog.append(software);
+    }
+    return catalog;
+}
+
+BalanceImportRequirements::BalanceImportRequirements(QObject *parent, const QString &cacheDirectory)
+    : QObject(parent), m_cacheDirectory(cacheDirectory)
+{
+    if (m_cacheDirectory.isEmpty())
+        m_cacheDirectory = QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation))
+            .filePath("LemonCloud/LemonWorkTool/subject-balance-requirements");
+}
+
+BalanceImportRequirements::~BalanceImportRequirements() { cancel(); }
+
+void BalanceImportRequirements::cancel()
+{
+    if (m_reply) {
+        auto *reply = m_reply.data();
+        m_reply.clear();
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+    }
+}
+
+void BalanceImportRequirements::load(const QString &host, bool refresh)
+{
+    cancel();
+    m_host = host;
+    m_current = Entry();
+    m_loading = false;
+    QUrl url;
+    QString reason;
+    if (!lemoncofighelper::TryBuildUrl(host, "/api/ImportFromOther/GetSoftwareFileRequirements", url, reason)
+        || url.host().isEmpty() || !url.userInfo().isEmpty()) {
+        m_current.message = QStringLiteral("文件要求配置不可用：导账域名无效");
+        emit changed();
+        return;
+    }
+    const QString endpoint = url.toString(QUrl::FullyEncoded);
+    if (refresh) m_cache.remove(endpoint);
+    if (m_cache.contains(endpoint)) {
+        m_current = m_cache.value(endpoint);
+        emit changed();
+        return;
+    }
+    m_loading = true;
+    m_current.message = QStringLiteral("正在获取文件要求…");
+    emit changed();
+    QNetworkRequest request(url);
+    request.setRawHeader("Accept", "application/json");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    request.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
+    request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
+    request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute, QNetworkRequest::Manual);
+    auto *reply = m_network.get(request);
+    m_reply = reply;
+    auto *timer = new QTimer(reply);
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, reply, [reply]() { reply->abort(); });
+    timer->start(5000);
+    const qint64 maximumBytes = 1024 * 1024;
+    connect(reply, &QIODevice::readyRead, reply, [reply, maximumBytes]() {
+        if (reply->bytesAvailable() > maximumBytes) reply->abort();
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, timer, endpoint, maximumBytes]() {
+        timer->stop();
+        m_reply.clear();
+        Entry entry;
+        QString failure;
+        QJsonArray rules;
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200
+            && reply->bytesAvailable() <= maximumBytes) {
+            const auto doc = QJsonDocument::fromJson(reply->readAll());
+            const auto root = doc.object();
+            if (doc.isObject() && root.value("state").isDouble() && root.value("state").toDouble() == 1000
+                && root.value("data").isArray()) {
+                rules = root.value("data").toArray();
+                entry.catalog = SubjectBalanceImport::applyRequirements(rules, &failure);
+            } else failure = QStringLiteral("接口响应格式或业务状态无效");
+        } else failure = QStringLiteral("接口请求失败或超时");
+        reply->deleteLater();
+        const QString path = QDir(m_cacheDirectory).filePath(QString::fromLatin1(
+            QCryptographicHash::hash(endpoint.toUtf8(), QCryptographicHash::Sha256).toHex()) + ".json");
+        if (!entry.catalog.isEmpty()) {
+            QSaveFile file(path);
+            const auto bytes = QJsonDocument(rules).toJson();
+            if (QDir().mkpath(m_cacheDirectory) && file.open(QIODevice::WriteOnly)
+                && file.write(bytes) == bytes.size() && file.commit()) {
+                entry.message = QStringLiteral("已获取最新文件要求");
+            } else {
+                entry.catalog.clear();
+                failure = QStringLiteral("无法保存文件要求缓存");
+            }
+        }
+        if (entry.catalog.isEmpty()) {
+            QFile file(path);
+            if (file.open(QIODevice::ReadOnly) && file.size() <= maximumBytes) {
+                const auto doc = QJsonDocument::fromJson(file.readAll());
+                if (doc.isArray()) entry.catalog = SubjectBalanceImport::applyRequirements(doc.array());
+            }
+            entry.message = entry.catalog.isEmpty()
+                ? QStringLiteral("文件要求配置不可用：%1，且没有有效缓存。请检查网络及缓存目录权限后刷新文件要求。").arg(failure)
+                : QStringLiteral("%1，已使用当前导账域名的上次有效文件要求。").arg(failure);
+        }
+        // Failed attempts remain retryable when the page is reopened or the host is selected again.
+        if (!entry.catalog.isEmpty()) m_cache.insert(endpoint, entry);
+        m_current = entry;
+        m_loading = false;
+        emit changed();
+    });
+}
+
+QString SubjectBalanceImport::validate(const BalanceImportInput &input, const BalanceImportSession &session,
+                                      const QList<BalanceImportSoftware> &catalog)
 {
     if (session.token.trimmed().isEmpty()) return QStringLiteral("请先登录");
     if (session.serviceId <= 0) return QStringLiteral("请先选择有效的企业专业版套餐");
@@ -95,11 +268,9 @@ QString SubjectBalanceImport::validate(const BalanceImportInput &input, const Ba
     if (!QSet<int>{1, 2, 3, 4, 5, 6, 7, 9}.contains(input.accountingStandard))
         return QStringLiteral("请选择会计准则");
     if (input.taxType != 1 && input.taxType != 2) return QStringLiteral("请选择纳税人类型");
-    const auto catalog = softwareCatalog();
+    if (catalog.isEmpty()) return QStringLiteral("文件要求配置不可用");
     for (const auto &software : catalog) if (software.id == input.software) {
-        if (software.id == 22001 && QFileInfo(input.files.value("subject")).suffix().compare("txt", Qt::CaseInsensitive) == 0
-            && input.files.value("trialbalance").trimmed().isEmpty())
-            return QStringLiteral("亿企代账使用 TXT 科目时，必须同时选择余额/凭证组合工作簿");
+        if (!software.requirementsAvailable) return QStringLiteral("当前软件没有可用的文件要求配置");
         if (!software.accountingStandards.isEmpty() && !software.accountingStandards.contains(input.accountingStandard))
             return QStringLiteral("当前软件不支持所选会计准则，请重新选择");
         QSet<QString> keys;
@@ -221,10 +392,11 @@ QNetworkRequest SubjectBalanceImportClient::request(const QUrl &url) const
     return req;
 }
 
-void SubjectBalanceImportClient::submit(const BalanceImportInput &input, const BalanceImportSession &session)
+void SubjectBalanceImportClient::submit(const BalanceImportInput &input, const BalanceImportSession &session,
+                                       const QList<BalanceImportSoftware> &catalog)
 {
     if (m_busy) return;
-    const QString error = SubjectBalanceImport::validate(input, session);
+    const QString error = SubjectBalanceImport::validate(input, session, catalog);
     if (!error.isEmpty()) { emit failed(error, false); return; }
     auto *multipart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
     for (auto it = input.files.constBegin(); it != input.files.constEnd(); ++it) {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration></ItemGroup>
+  <PropertyGroup Label="Globals"><ProjectGuid>{F02D4C53-857A-450E-A37D-ED8C76B44F85}</ProjectGuid><Keyword>QtVS_v304</Keyword><QtMsBuild Condition="'$(QtMsBuild)'==''">$(LocalAppData)\QtMsBuild</QtMsBuild></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset><UseDebugLibraries>false</UseDebugLibraries><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(QtMsBuild)\Qt.props" />
+  <PropertyGroup Label="QtSettings"><QtInstall>qt5.12.0</QtInstall><QtModules>core</QtModules><QtBuildConfig>release</QtBuildConfig></PropertyGroup>
+  <PropertyGroup><TargetName>LemonJetRecovery</TargetName><TLogLocation>$(IntDir)tlog\</TLogLocation><QtIntDir>$(IntDir)qt\</QtIntDir></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level3</WarningLevel><ConformanceMode>true</ConformanceMode><RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions><PreprocessorDefinitions>NOMINMAX;_SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\..\QtWidgetsApplication1\ThirdParty\MdbTools\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><ProgramDataBaseFileName>$(IntDir)compiler.pdb</ProgramDataBaseFileName><PrecompiledHeaderOutputFile>$(IntDir)compiler.pch</PrecompiledHeaderOutputFile></ClCompile>
+    <Link><SubSystem>Console</SubSystem><ProgramDatabaseFile>$(OutDir)LemonJetRecovery.pdb</ProgramDatabaseFile><AdditionalDependencies>$(MSBuildThisFileDirectory)..\..\QtWidgetsApplication1\ThirdParty\MdbTools\lib\mdbjet3.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="main.cpp" /><ClCompile Include="Jet3Reader.cpp" /><ClInclude Include="Jet3Reader.h" /><QtRcc Include="JetRecovery.qrc" /><None Include="RestoreJet4.ps1" /></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(QtMsBuild)\qt.targets" />
+  <Target Name="ReportRecoveryIsolation" BeforeTargets="PrepareForBuild"><Message Importance="high" Text="RECOVERY ISOLATION OutDir=$(OutDir) IntDir=$(IntDir) QtIntDir=$(QtIntDir) TLog=$(TLogLocation) PDB=$(IntDir)compiler.pdb Clean=$(IntDir)$(CleanFile)" /></Target>
+</Project>

@@ -50,6 +50,10 @@
 #include <QCloseEvent>
 #include <QMenu>
 #include <QPainter>
+#include <cstdlib>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 #include "httprequesthelper.h"
 
 QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *parent)
@@ -850,7 +854,7 @@ void QtWidgetsApplication1::showDatabaseCleanup()
 void QtWidgetsApplication1::showBackupRestore(int softwareId)
 {
     updatePageHeader(QStringLiteral("恢复备份包"),
-        QStringLiteral("选择备份来源软件，恢复到扫描发现的本地实例或 211"));
+        QStringLiteral("选择备份类型，检查数据库版本后恢复到本地实例或 211"));
     if (!m_pBackupRestoreWidget) {
         m_pBackupRestoreWidget = new BackupRestoreWidget(this);
         addToolPage(m_pBackupRestoreWidget);
@@ -1117,12 +1121,12 @@ void QtWidgetsApplication1::requestEnvironmentSwitch()
 
 void QtWidgetsApplication1::requestExit()
 {
-    if (hasActiveTasks() || QApplication::activeModalWidget()) {
-        restoreFromTray();
-        QMessageBox::information(this, QStringLiteral("任务进行中"), QStringLiteral("请先完成或停止当前任务，再退出工具。"));
-        return;
-    }
-    qApp->quit();
+    // Explicit exit takes precedence over backup polling, modal dialogs and
+    // worker teardown. Do not run destructors or wait for background tasks.
+#ifdef Q_OS_WIN
+    ::TerminateProcess(::GetCurrentProcess(), 0);
+#endif
+    std::_Exit(0);
 }
 
 void QtWidgetsApplication1::updateSessionStatus(const QString &message, bool warning)

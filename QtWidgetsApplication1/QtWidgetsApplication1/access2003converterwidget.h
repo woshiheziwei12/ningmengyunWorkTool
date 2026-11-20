@@ -15,6 +15,7 @@ class QMimeData;
 class QProgressBar;
 class QPushButton;
 class QTextEdit;
+class QComboBox;
 
 class Access2003ConverterWidget : public QWidget
 {
@@ -55,6 +56,7 @@ private:
     QLabel *m_pSelectionSummaryLabel;
     QLineEdit *m_pOutputDirectoryEdit;
     QLineEdit *m_pPasswordEdit;
+    QComboBox *m_pModeCombo;
     QListWidget *m_pFileList;
     QProgressBar *m_pProgressBar;
     QTextEdit *m_pLogEdit;

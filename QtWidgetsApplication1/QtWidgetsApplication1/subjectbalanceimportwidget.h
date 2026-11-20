@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Common/subjectbalanceimport.h"
 #include <QWidget>
@@ -19,7 +19,8 @@ class SubjectBalanceImportWidget : public QWidget
     Q_OBJECT
 public:
     explicit SubjectBalanceImportWidget(GlobalData *globalData, QWidget *parent = nullptr,
-                                       const QString &historyFilePath = QString());
+                                       const QString &historyFilePath = QString(),
+                                       BalanceImportRequirements *requirements = nullptr);
     void reloadHistory();
 public slots:
     void selectSourceFile(const QString &key, const QString &path);
@@ -38,6 +39,7 @@ private:
     GlobalData *m_global;
     QString m_historyFilePath;
     SubjectBalanceImportClient *m_client;
+    BalanceImportRequirements *m_requirements;
     QList<BalanceImportSoftware> m_catalog;
     QWidget *m_form;
     QComboBox *m_software, *m_standard, *m_tax, *m_host, *m_history;
@@ -49,7 +51,7 @@ private:
     QString m_generatedAccountName;
     QTableWidget *m_auxiliary;
     QPushButton *m_addAuxiliary, *m_submit, *m_resume, *m_stop;
-    QLabel *m_softwareNotes, *m_status, *m_fileHint;
+    QLabel *m_softwareNotes, *m_status, *m_fileHint, *m_requirementsStatus;
     QTextEdit *m_result;
     QJsonObject m_record;
 };

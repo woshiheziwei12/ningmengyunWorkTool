@@ -31,6 +31,8 @@ ipch/
 *.aps
 *.exp
 *.lib
+!/QtWidgetsApplication1/ThirdParty/MdbTools/lib/mdbjet3.lib
+!/QtWidgetsApplication1/ThirdParty/MdbTools/COPYING.LIB
 *.dll
 *.exe
 *.manifest
@@ -47,6 +49,10 @@ ipch/
 [Dd]ebug/
 [Rr]elease/
 [Bb]uild/
+!/Tools/Build/
+/Tools/Build/*
+!/Tools/Build/build.ps1
+!/Tools/Build/isolation.targets
 [Oo]ut/
 [Bb]in/
 [Oo]bj/

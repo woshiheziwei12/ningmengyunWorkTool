@@ -20,7 +20,7 @@ inline T3BackupAnalysis validateTarget(const T3BackupAnalysis& original, const T
     if (options.server.isEmpty()) return fail(QString::fromUtf8(u8"请选择恢复实例，已读取的备份信息保留。"));
     if (result.preparedPath.isEmpty() || result.sets.isEmpty()) return fail(QString::fromUtf8(u8"请先读取备份包。"));
     if (!probe(options, &result.server, &result.error)) return fail(result.error);
-    if (LocalSqlInstances::isLocalEndpoint(options.server)) LocalSqlInstances::cacheVersion(options.server, result.server.version);
+    if (LocalSqlInstances::isLocalEndpoint(options.server)) LocalSqlInstances::cacheVersion(options.server, result.server.version, result.server.databaseVersion);
     const QString versionError = SqlBackupCompatibility::error(result.sets, result.server);
     if (!versionError.isEmpty()) return fail(versionError);
     const QString origin = result.preparedServer.isEmpty() ? original.targetServer : result.preparedServer;
@@ -42,7 +42,10 @@ inline QMap<QString, T3ServerInfo> cachedVersions(const QVector<T3SqlConnection>
         T3ServerInfo info;
         info.name = candidate.server;
         if (candidate.server == SqlServer211::endpoint()) info = SqlServer211::version();
-        else info.version = LocalSqlInstances::cachedVersion(candidate.server);
+        else {
+            info.version = LocalSqlInstances::cachedVersion(candidate.server);
+            info.databaseVersion = LocalSqlInstances::cachedDatabaseVersion(candidate.server);
+        }
         versions.insert(candidate.server, info);
     }
     return versions;
@@ -91,12 +94,16 @@ Analysis read(const QVector<T3SqlConnection>& candidates, const QString& source,
             failures.append(QString::fromUtf8(u8"%1：扫描记录的版本 %2 不兼容，已跳过。").arg(options.server, cached.version));
             continue;
         }
-        report(QString::fromUtf8(u8"检查实例 %1 的 SQL Server 版本...").arg(options.server));
-        if (options.server == SqlServer211::endpoint() && !cached.version.isEmpty()) info = cached;
-        else if (!probe(options, &info, &error)) {
-            failures.append(options.server + QStringLiteral(": ") + error); continue;
+        if (!cached.version.isEmpty() && cached.databaseVersion > 0
+            && (LocalSqlInstances::isLocalEndpoint(options.server) || options.server == SqlServer211::endpoint())) info = cached;
+        else {
+            report(QString::fromUtf8(u8"检查实例 %1 的 SQL Server 版本...").arg(options.server));
+            if (!probe(options, &info, &error)) {
+                failures.append(options.server + QStringLiteral(": ") + error); continue;
+            }
+            if (LocalSqlInstances::isLocalEndpoint(options.server))
+                LocalSqlInstances::cacheVersion(options.server, info.version, info.databaseVersion);
         }
-        else if (LocalSqlInstances::isLocalEndpoint(options.server)) LocalSqlInstances::cacheVersion(options.server, info.version);
         if (stopped()) break;
         if (!knownSets.isEmpty()) {
             error = SqlBackupCompatibility::error(knownSets, info);

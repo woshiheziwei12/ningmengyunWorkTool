@@ -1,6 +1,7 @@
 #include "access2003converter.h"
 
 #include "logger.h"
+#include "Jet3Recovery.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -12,7 +13,6 @@
 #include <chrono>
 #include <cwctype>
 #include <iterator>
-#include <map>
 #include <set>
 #include <thread>
 
@@ -22,7 +22,6 @@
 #endif
 #include <windows.h>
 #include <oleauto.h>
-#include <tlhelp32.h>
 #endif
 
 namespace
@@ -48,6 +47,14 @@ bool isJet4Database(const QString &path)
     return header.size() >= 21
         && header.mid(4, 15) == QByteArray("Standard Jet DB", 15)
         && static_cast<unsigned char>(header.at(20)) == 1;
+}
+
+bool isJet3Database(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    const auto header=file.read(24);
+    return header.size()==24 && header.mid(4,15)=="Standard Jet DB" && header[20]==0;
 }
 
 QString normalizedPath(const QString &path)
@@ -169,28 +176,6 @@ private:
     bool m_shouldUninitialize;
 };
 
-std::set<DWORD> runningAccessProcessIds()
-{
-    std::set<DWORD> processIds;
-    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE)
-        return processIds;
-
-    PROCESSENTRY32W entry = {};
-    entry.dwSize = sizeof(entry);
-    if (Process32FirstW(snapshot, &entry))
-    {
-        do
-        {
-            if (_wcsicmp(entry.szExeFile, L"MSACCESS.EXE") == 0)
-                processIds.insert(entry.th32ProcessID);
-        }
-        while (Process32NextW(snapshot, &entry));
-    }
-    CloseHandle(snapshot);
-    return processIds;
-}
-
 std::wstring lowerText(std::wstring text)
 {
     for (wchar_t &character : text)
@@ -303,9 +288,9 @@ class AccessPasswordDialogAutomation
 public:
     explicit AccessPasswordDialogAutomation(const QString &password)
         : m_password(password.toStdWString()),
-          m_initialProcessIds(runningAccessProcessIds()),
           m_stopRequested(false),
-          m_targetProcessId(0)
+          m_targetProcessId(0),
+          m_passwordRejected(false)
     {
     }
 
@@ -318,7 +303,7 @@ public:
 
     void start()
     {
-        if (m_password.empty() || m_thread.joinable())
+        if (m_password.empty() || !m_targetProcessId.load() || m_thread.joinable())
             return;
         m_thread = std::thread([this]() { run(); });
     }
@@ -335,69 +320,50 @@ public:
             m_thread.join();
     }
 
+    bool passwordRejected() const { return m_passwordRejected.load(); }
+
 private:
     void run()
     {
         using Clock = std::chrono::steady_clock;
-        struct SubmittedDialog
-        {
-            Clock::time_point submittedAt;
-            bool cancelSent = false;
-        };
-        std::map<HWND, SubmittedDialog> submittedDialogs;
+        // This object belongs to one file conversion. Access recreates its
+        // password dialog after rejection, so HWND lifetime cannot bound retries.
+        HWND submittedDialog = nullptr;
+        Clock::time_point submittedAt;
+        bool dialogDisappeared = false;
         while (!m_stopRequested.load())
         {
-            std::set<DWORD> candidates;
-            const std::set<DWORD> currentIds = runningAccessProcessIds();
-            const DWORD targetId = m_targetProcessId.load();
-            for (DWORD processId : currentIds)
-            {
-                if (processId == targetId
-                    || m_initialProcessIds.find(processId) == m_initialProcessIds.end())
-                {
-                    candidates.insert(processId);
-                }
-            }
-
             PasswordWindowSearch search;
-            search.candidateProcessIds = candidates;
-            if (!candidates.empty())
-                EnumWindows(findPasswordWindow, reinterpret_cast<LPARAM>(&search));
+            search.candidateProcessIds.insert(m_targetProcessId.load());
+            EnumWindows(findPasswordWindow, reinterpret_cast<LPARAM>(&search));
 
-            if (search.dialog && submittedDialogs.find(search.dialog) == submittedDialogs.end())
+            if (search.dialog && !submittedDialog)
             {
+                submittedDialog = search.dialog;
+                submittedAt = Clock::now();
                 DWORD_PTR ignored = 0;
                 SendMessageTimeoutW(search.passwordEdit, WM_SETTEXT, 0,
                                     reinterpret_cast<LPARAM>(m_password.c_str()),
                                     SMTO_ABORTIFHUNG, 2000, &ignored);
                 clickDialogButton(search.dialog, search.defaultButton, IDOK);
-                submittedDialogs[search.dialog] = { Clock::now(), false };
             }
-
-            for (auto iterator = submittedDialogs.begin(); iterator != submittedDialogs.end();)
+            else if (search.dialog && (search.dialog != submittedDialog || dialogDisappeared
+                     || Clock::now() - submittedAt > std::chrono::seconds(5)))
             {
-                if (!IsWindow(iterator->first))
-                {
-                    iterator = submittedDialogs.erase(iterator);
-                    continue;
-                }
-                if (!iterator->second.cancelSent
-                    && Clock::now() - iterator->second.submittedAt > std::chrono::seconds(5))
-                {
-                    HWND cancelButton = GetDlgItem(iterator->first, IDCANCEL);
-                    clickDialogButton(iterator->first, cancelButton, IDCANCEL);
-                    iterator->second.cancelSent = true;
-                }
-                ++iterator;
+                m_passwordRejected.store(true);
+                // Cancel every replacement prompt, never submit the same password again.
+                clickDialogButton(search.dialog, GetDlgItem(search.dialog, IDCANCEL), IDCANCEL);
             }
+            if (submittedDialog && (!search.dialog || !IsWindow(submittedDialog)))
+                dialogDisappeared = true;
             std::this_thread::sleep_for(std::chrono::milliseconds(80));
         }
     }
 
     std::wstring m_password;
-    std::set<DWORD> m_initialProcessIds;
     std::atomic<bool> m_stopRequested;
     std::atomic<DWORD> m_targetProcessId;
+    std::atomic<bool> m_passwordRejected;
     std::thread m_thread;
 };
 
@@ -466,7 +432,7 @@ public:
         VARIANT result;
         VariantInit(&result);
         QString ignoredError;
-        const HRESULT hr = invokeDispatch(m_dispatch, L"hWnd", DISPATCH_PROPERTYGET,
+        const HRESULT hr = invokeDispatch(m_dispatch, L"hWndAccessApp", DISPATCH_METHOD,
                                           nullptr, 0, &result, &ignoredError);
         HWND window = nullptr;
         if (SUCCEEDED(hr))
@@ -593,13 +559,14 @@ QString Access2003Converter::uniqueOutputPath(const QString &outputDirectory,
         candidate = QDir(outputDirectory).filePath(fileName);
         ++counter;
     }
-    while (QFileInfo::exists(candidate) || reserved.contains(normalizedPath(candidate)));
+    while (QFileInfo::exists(candidate) || QFileInfo::exists(candidate+".recovery.json") || reserved.contains(normalizedPath(candidate)));
     return QDir::cleanPath(candidate);
 }
 
 Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourcePaths,
                                                         const QString &outputDirectory,
-                                                        const QString &password)
+                                                        const QString &password,
+                                                        Access2003ConversionMode mode)
 {
     Access2003BatchResult batchResult;
     QDir outputDir(outputDirectory);
@@ -613,6 +580,7 @@ Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourc
 #ifndef Q_OS_WIN
     Q_UNUSED(sourcePaths)
     Q_UNUSED(password)
+    Q_UNUSED(mode)
     batchResult.startupError = QStringLiteral("Access 2003 批量转换仅支持 Windows");
     return batchResult;
 #else
@@ -627,16 +595,9 @@ Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourc
     const QString effectivePassword = password.isEmpty()
         ? QString::fromLatin1(kDefaultAccessPassword)
         : password;
-    AccessPasswordDialogAutomation passwordAutomation(effectivePassword);
-    passwordAutomation.start();
     AccessApplication access;
-    if (!access.open(&batchResult.startupError))
-        return batchResult;
-
-    passwordAutomation.setTargetProcessId(access.processId());
-
-    batchResult.accessStarted = true;
-    batchResult.accessVersion = access.version();
+    DWORD accessProcessId=0;
+    batchResult.batchStarted=true;
     QStringList reservedPaths;
     for (const QString &sourcePath : sourcePaths)
     {
@@ -669,10 +630,47 @@ Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourc
             if (!item.success)
                 item.errorMessage = QStringLiteral("文件已经是 Jet 4.0 格式，但复制到输出目录失败");
         }
+        else if (mode==Access2003ConversionMode::PreferDataRecovery && isJet3Database(item.sourcePath))
+        {
+            const auto recovery=recoverJet3Data(item.sourcePath,item.destinationPath);
+            item.success=recovery.success;
+            item.recoveredData=recovery.success;
+            item.recoveredTables=recovery.tables;
+            item.recoveredRows=recovery.rows;
+            item.recoveryReportPath=recovery.reportPath;
+            item.warnings=recovery.warnings;
+            item.errorMessage=recovery.error;
+        }
         else
         {
+            if (!accessProcessId)
+            {
+                if (access.open(&item.errorMessage))
+                {
+                    accessProcessId=access.processId();
+                    batchResult.accessStarted=true;
+                    batchResult.accessVersion=access.version();
+                    if (!accessProcessId)
+                        item.errorMessage=QStringLiteral("无法识别本次 Access 2003 进程，已停止此文件转换");
+                }
+                if (!accessProcessId)
+                {
+                    access.close();
+                    batchResult.items.append(item);
+                    continue;
+                }
+            }
             QFile::remove(item.destinationPath);
+            AccessPasswordDialogAutomation passwordAutomation(effectivePassword);
+            passwordAutomation.setTargetProcessId(accessProcessId);
+            passwordAutomation.start();
             item.success = access.convert(item.sourcePath, item.destinationPath, &item.errorMessage);
+            passwordAutomation.stop();
+            if (passwordAutomation.passwordRejected())
+            {
+                item.success = false;
+                item.errorMessage = QStringLiteral("Access 未接受数据库密码或重复要求输入密码，已取消此文件转换。请确认数据库密码后重试。");
+            }
             if (item.success && (!QFileInfo::exists(item.destinationPath)
                                  || QFileInfo(item.destinationPath).size() <= 0))
             {
@@ -698,7 +696,6 @@ Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourc
         batchResult.items.append(item);
     }
     access.close();
-    passwordAutomation.stop();
     return batchResult;
 #endif
 }

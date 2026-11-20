@@ -1,5 +1,6 @@
 ﻿#include "BackupRestoreWidget.h"
 #include "T3RestoreWidget.h"
+#include "BakRestoreWidget.h"
 #include "U8RestoreWidget.h"
 #include "TPlusRestoreWidget.h"
 #include "KisProRestoreWidget.h"
@@ -24,7 +25,7 @@ BackupRestoreWidget::BackupRestoreWidget(QWidget* parent) : QWidget(parent)
     title->setObjectName(QStringLiteral("labelPageTitle"));
     m_layout->addWidget(title);
     auto* row = new QHBoxLayout;
-    row->addWidget(new QLabel(QStringLiteral("备份来源软件"), this));
+    row->addWidget(new QLabel(QStringLiteral("备份类型"), this));
     m_software = new QComboBox(this);
     m_software->setObjectName(QStringLiteral("restoreSoftware"));
     m_software->setItemDelegate(new QStyledItemDelegate(m_software));
@@ -35,9 +36,10 @@ BackupRestoreWidget::BackupRestoreWidget(QWidget* parent) : QWidget(parent)
     m_software->addItem(QStringLiteral("浪潮"), 27);
     m_software->addItem(QStringLiteral("新中大"), 28);
     m_software->addItem(QStringLiteral("速达（解包为 BAK）"), 19);
+    m_software->addItem(QStringLiteral("BAK 文件恢复"), 29);
     row->addWidget(m_software, 1);
     m_layout->addLayout(row);
-    auto* hint = new QLabel(QStringLiteral("先选择生成备份的软件，再按下方步骤处理。切换软件会清空当前表单；任务执行期间不可切换。"), this);
+    auto* hint = new QLabel(QStringLiteral("选择对应备份类型或“BAK 文件恢复”，再按下方步骤处理。切换类型会清空当前表单；任务执行期间不可切换。"), this);
     hint->setWordWrap(true);
     m_layout->addWidget(hint);
     connect(m_software, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() { changeSoftware(); });
@@ -92,6 +94,7 @@ void BackupRestoreWidget::changeSoftware()
     case 27: attach(new InspurRestoreWidget(this)); break;
     case 28: attach(new XinZhongDaRestoreWidget(this)); break;
     case 19: attach(new SudaBackupWidget(this)); break;
+    case 29: attach(new BakRestoreWidget(this)); break;
     default: attach(new T3RestoreWidget(this)); break;
     }
     m_currentSoftware = m_software->currentIndex();

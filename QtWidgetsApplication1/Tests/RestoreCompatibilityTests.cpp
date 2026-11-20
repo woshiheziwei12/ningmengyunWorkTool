@@ -93,12 +93,51 @@ void runRestoreCompatibilityTests()
     probes.clear();reads.clear();
     QMap<QString,T3ServerInfo> cached{{".",legacy},{named,legacy},{remote,legacy}};
     result=SqlRestoreRouting::read<T3BackupAnalysis>(candidates,"fixture",paths,false,reader,{}, {},probe,cached);
-    checkRestore(!result.success && probes==QStringList({"."}), "known incompatible cached instances skipped without connections");
+    checkRestore(!result.success && probes.isEmpty(), "cached local versions need no probe; incompatible instances are skipped");
     source=old;servers["."]=modern;servers[named]=modern;servers[remote]=legacy;
     cached["."]=modern;cached[named]=modern;
     probes.clear();reads.clear();
     result=SqlRestoreRouting::read<T3BackupAnalysis>(candidates,"fixture",paths,false,reader,{}, {},probe,cached);
     checkRestore(result.success && result.targetServer==remote && !probes.contains(remote), "fixed 211 version used without version-probe round trip");
+
+    source=recent;probes.clear();reads.clear();
+    QStringList messages;
+    for (int attempt=0;attempt<2;++attempt) {
+        result=SqlRestoreRouting::read<T3BackupAnalysis>(candidates,"fixture",paths,false,reader,{},
+            [&](const QString& message){messages.append(message);},probe,cached);
+        checkRestore(result.success && result.targetServer==".", "repeated reads retain compatible local target");
+    }
+    checkRestore(probes.isEmpty() && reads==QStringList({".","."}), "repeated reads reuse cached version but still read each backup");
+    checkRestore(!messages.join('\n').contains(QString::fromUtf8(u8"检查实例")), "cached reads do not report a new version check");
+
+    T3SqlConnection cacheTarget;cacheTarget.server=".\\CACHE_TEST";
+    QSettings versionSettings(QSettings::defaultFormat(),QSettings::UserScope,"LemonCloud","LemonWorkTool");
+    versionSettings.remove(LocalSqlInstances::cacheKey(cacheTarget.server));versionSettings.sync();
+    int versionQueries=0;
+    auto cacheProbe=[&](const T3SqlConnection&,T3ServerInfo* info,QString* error) {
+        if (++versionQueries==1) {*error="temporarily offline";return false;}
+        *info=modern;return true;
+    };
+    auto cacheReader=[&](const T3SqlConnection&,const QString&,const QString&,
+        const T3BackupRestorer::Cancel&,const T3BackupRestorer::Progress&,bool) {
+        T3BackupAnalysis analysis;analysis.server=modern;analysis.sets={recent};analysis.success=true;return analysis;
+    };
+    for (int attempt=0;attempt<3;++attempt) {
+        result=SqlRestoreRouting::read<T3BackupAnalysis>({cacheTarget},"fixture",{},false,cacheReader,{}, {},cacheProbe,
+            SqlRestoreRouting::cachedVersions({cacheTarget}));
+        checkRestore(result.success==(attempt>0), "failed lookup retries; successful lookup is persisted for subsequent reads");
+    }
+    checkRestore(versionQueries==2, "failed lookup is not cached and successful lookup is performed only once");
+    LocalSqlInstances::cacheVersion(cacheTarget.server,QString());
+    auto persisted=SqlRestoreRouting::cachedVersions({cacheTarget}).value(cacheTarget.server);
+    checkRestore(persisted.version==modern.version && persisted.databaseVersion==modern.databaseVersion,
+        "empty registry result preserves both cached version fields");
+    LocalSqlInstances::cacheVersion(cacheTarget.server,modern.version);
+    checkRestore(LocalSqlInstances::cachedDatabaseVersion(cacheTarget.server)==modern.databaseVersion,
+        "same registry version preserves internal version");
+    LocalSqlInstances::cacheVersion(cacheTarget.server,legacy.version);
+    checkRestore(LocalSqlInstances::cachedDatabaseVersion(cacheTarget.server)==0,
+        "changing engine version cannot retain a mismatched internal version");
 
     T3BackupAnalysis prepared;prepared.success=true;prepared.sets={old};
     prepared.preparedPath="D:/shared/existing.bak";prepared.targetServer=".";prepared.preparedServer=".";

@@ -1,10 +1,10 @@
 # 科目余额表导账附件目录核实
 
-核实日期：2026-09-22。只读取服务源码，没有更改或运行服务。
+历史核实日期：2026-09-22。以下解析器记录仅供追溯。2026-11-05 起，软件列表的编号、名称、顺序以及科目表、余额表、凭证表的上传状态统一来自 `GetSoftwareFileRequirements`；历史必填、可选和组合要求不再作为客户端拦截依据，具体缓存与四态行为见 [全局规则](global-rules.md#科目余额表导账)。
 
 ## 目录契约
 
-- `QtWidgetsApplication1/Resource/import/subject-balance-software.json` 为数组，完整包含 SoftwareEnum 的 70 个有效成员（69 个解析器）；`files` 为实际 multipart 固定槽位，`required` 按解析器控制流，不盲从接口列表。
+- `QtWidgetsApplication1/Resource/import/subject-balance-software.json` 为数组，保留历史核实的 70 个软件描述（69 个解析器），仅用于补充已有软件说明，不限制接口新增软件；`files` 提供 multipart 槽位的本地名称与格式说明；运行时按接口增加/隐藏三类槽位并设置上传状态，资源不再包含 `required`。
 - `supportsAuxiliaryFiles=true` 才开放动态辅助附件；用户填写的辅助类别名称原样作为 multipart key，不发送 `auxiliary` 这类虚构固定 key。同类别不得重复，也不得占用核心 `trialbalance/voucher/subject` key。Excel 扩展名为 `.xls/.xlsx`。
 - 各软件辅助类别必须与余额/凭证内的原类别一致。企明星对名称做 NormalizeProjectTypeName 与类型映射；不代表任意名称均有效。
 - `uncertain=true` 是已发现的入口声明与解析路径差异，`notes` / slot `notes` 可直接上屏；并非未找到软件解析器。

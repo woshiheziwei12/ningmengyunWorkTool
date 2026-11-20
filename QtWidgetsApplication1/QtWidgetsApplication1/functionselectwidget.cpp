@@ -215,7 +215,7 @@ FunctionSelectWidget::FunctionSelectWidget(GlobalData *globalData, QWidget *pare
         QStringLiteral("调用本机 Access 2003，将 AIS、AIY、MDB 批量转换为 Jet 4.0"),
         QStringLiteral("库"), "btnAccess2003Converter", "blue", false, QStringLiteral("本地工具"));
     addTool(20, QStringLiteral("恢复备份包"),
-        QStringLiteral("选择用友 T3、U8、畅捷通 T+、金蝶专业版、浪潮、新中大或速达，恢复到本地实例或 211；速达导出 BAK"),
+        QStringLiteral("支持 BAK 文件或目录批量读取版本及恢复，也支持用友 T3、U8、畅捷通 T+、金蝶专业版、浪潮、新中大、速达备份；速达导出 BAK"),
         QStringLiteral("库"), "btnBackupRestore", "blue", false, QStringLiteral("数据库工具"));
     addTool(21, QString::fromUtf8(u8"选择删除数据库"),
         QString::fromUtf8(u8"勾选本地或 211 实例中的数据库进行删除，支持全选"),

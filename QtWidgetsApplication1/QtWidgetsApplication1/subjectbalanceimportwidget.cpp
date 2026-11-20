@@ -58,8 +58,10 @@ const QList<QPair<int, QString>> standards = {
 };
 }
 
-SubjectBalanceImportWidget::SubjectBalanceImportWidget(GlobalData *globalData, QWidget *parent, const QString &historyFilePath)
-    : QWidget(parent), m_global(globalData), m_historyFilePath(historyFilePath), m_client(new SubjectBalanceImportClient(this))
+SubjectBalanceImportWidget::SubjectBalanceImportWidget(GlobalData *globalData, QWidget *parent, const QString &historyFilePath,
+                                                     BalanceImportRequirements *requirements)
+    : QWidget(parent), m_global(globalData), m_historyFilePath(historyFilePath), m_client(new SubjectBalanceImportClient(this)),
+      m_requirements(requirements ? requirements : new BalanceImportRequirements(this))
 {
     setObjectName("subjectBalanceImportPage");
     m_client->setTokenProvider([this]() {
@@ -84,13 +86,7 @@ SubjectBalanceImportWidget::SubjectBalanceImportWidget(GlobalData *globalData, Q
     m_software->setObjectName("balanceSoftware");
     m_software->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     m_software->setMinimumContentsLength(16);
-    QString catalogError;
-    m_catalog = SubjectBalanceImport::softwareCatalog(&catalogError);
     m_software->addItem(QStringLiteral("请选择来源软件"), -1);
-    for (const auto &software : m_catalog) {
-        m_software->addItem(software.name, software.id);
-        m_software->setItemData(m_software->count() - 1, software.name, Qt::ToolTipRole);
-    }
     m_software->setEditable(true);
     m_software->setInsertPolicy(QComboBox::NoInsert);
     m_software->setMaxVisibleItems(10);
@@ -148,7 +144,25 @@ SubjectBalanceImportWidget::SubjectBalanceImportWidget(GlobalData *globalData, Q
     m_host->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     m_host->setMinimumContentsLength(16);
     populateProfessionalImporterHosts(m_host);
+    if (!m_requirements->host().isEmpty()) {
+        int index = m_host->findData(m_requirements->host());
+        if (index < 0) {
+            m_host->addItem(m_requirements->host(), m_requirements->host());
+            index = m_host->count() - 1;
+        }
+        m_host->setCurrentIndex(index);
+    }
     form->addRow(QStringLiteral("导账域名 *"), m_host);
+    m_requirementsStatus = new QLabel(m_form);
+    m_requirementsStatus->setObjectName("balanceRequirementsStatus");
+    m_requirementsStatus->setTextFormat(Qt::PlainText);
+    m_requirementsStatus->setWordWrap(true);
+    form->addRow(QString(), m_requirementsStatus);
+    auto *refreshRequirements = new QPushButton(QStringLiteral("刷新文件要求"), m_form);
+    refreshRequirements->setObjectName("balanceRefreshRequirements");
+    refreshRequirements->setToolTip(QStringLiteral("重新获取当前域名的文件要求，并清空已选择的附件"));
+    refreshRequirements->setMaximumWidth(220);
+    form->addRow(QString(), refreshRequirements);
     m_zero = new QCheckBox(QStringLiteral("导入零余额科目（包括金额为空的余额表行）"), m_form);
     m_zero->setObjectName("balanceImportZero");
     form->addRow(QString(), m_zero);
@@ -261,7 +275,38 @@ SubjectBalanceImportWidget::SubjectBalanceImportWidget(GlobalData *globalData, Q
     }
     changeSoftware();
     reloadHistory();
-    if (!catalogError.isEmpty()) { m_status->setText(catalogError); m_submit->setEnabled(false); }
+    connect(m_requirements, &BalanceImportRequirements::changed, this, [this, refreshRequirements]() {
+        m_catalog = m_requirements->catalog();
+        // Keep the selected ID while loading, but do not allow selection from stale rules.
+        m_software->setEnabled(!m_requirements->loading());
+        if (!m_requirements->loading()) {
+            const int selectedId = m_software->currentIndex() > 0
+                && m_software->currentText() == m_software->itemText(m_software->currentIndex())
+                ? m_software->currentData().toInt() : -1;
+            const QSignalBlocker blocker(m_software);
+            m_software->completer()->popup()->hide();
+            m_software->clear();
+            m_software->addItem(QStringLiteral("请选择来源软件"), -1);
+            for (const auto &software : m_catalog) {
+                m_software->addItem(software.name, software.id);
+                m_software->setItemData(m_software->count() - 1, software.name, Qt::ToolTipRole);
+            }
+            m_software->setCurrentIndex(selectedId > 0 ? m_software->findData(selectedId) : -1);
+            m_software->completer()->setCompletionPrefix(QString());
+        }
+        m_requirementsStatus->setText(m_requirements->message());
+        setProperty("sessionBusyFileRequirements", m_requirements->loading());
+        refreshRequirements->setEnabled(!m_requirements->loading());
+        changeSoftware();
+        updateBusy(m_client->busy());
+    });
+    connect(m_host, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        m_requirements->load(m_host->currentData().toString());
+    });
+    connect(refreshRequirements, &QPushButton::clicked, this, [this]() {
+        m_requirements->load(m_host->currentData().toString(), true);
+    });
+    m_requirements->load(m_host->currentData().toString());
 }
 
 void SubjectBalanceImportWidget::changeSoftware()
@@ -287,7 +332,13 @@ void SubjectBalanceImportWidget::changeSoftware()
     if (m_name->text().trimmed().isEmpty() || m_name->text() == m_generatedAccountName)
         m_name->setText(defaultName);
     m_generatedAccountName = defaultName;
+    m_submit->setEnabled(!m_client->busy() && !m_requirements->loading()
+        && !m_catalog.isEmpty() && (!selected || selected->requirementsAvailable));
     if (!selected) return;
+    if (!selected->requirementsAvailable) {
+        m_softwareNotes->setText(QStringLiteral("当前软件没有可用的文件要求配置，不能导账。"));
+        return;
+    }
     m_softwareNotes->setText(selected->notes);
     m_addAuxiliary->setVisible(selected->supportsAuxiliaryFiles);
     auto orderedFiles = selected->files;
@@ -319,7 +370,9 @@ void SubjectBalanceImportWidget::changeSoftware()
                 QStringLiteral("原始表格 (%1)").arg(patterns.join(' ')));
             if (!file.isEmpty()) selectSourceFile(slot.key, file);
         });
-        m_fileLayout->addRow(slot.label + (slot.required ? QStringLiteral(" *") : QStringLiteral("（可选）")), row);
+        const QString status = slot.required ? QStringLiteral(" *") : slot.special
+            ? QStringLiteral("（由服务端判断）") : QStringLiteral("（可选）");
+        m_fileLayout->addRow(slot.label + status, row);
         if (!slot.notes.isEmpty()) {
             auto *note = new QLabel(slot.notes, m_form);
             note->setTextFormat(Qt::PlainText);
@@ -415,6 +468,10 @@ void SubjectBalanceImportWidget::submit()
         return;
     }
     if (m_client->busy()) return;
+    if (m_requirements->loading() || m_catalog.isEmpty()) {
+        m_status->setText(QStringLiteral("请等待有效的文件要求配置加载完成"));
+        return;
+    }
     BalanceImportInput input;
     input.software = m_software->currentData().toInt();
     input.accountName = m_name->text().trimmed();
@@ -432,20 +489,23 @@ void SubjectBalanceImportWidget::submit()
         input.files.insert(key, m_auxiliary->item(row, 1)->text());
     }
     const auto current = session();
-    const QString error = SubjectBalanceImport::validate(input, current);
+    const QString error = SubjectBalanceImport::validate(input, current, m_catalog);
     if (!error.isEmpty()) { m_status->setText(error); return; }
     if (current.owner.isEmpty()) { m_status->setText(QStringLiteral("当前登录用户信息不完整，请重新登录后导账")); return; }
     m_record = QJsonObject{{"owner", current.owner}, {"serviceId", current.serviceId}, {"host", current.host},
         {"software", input.software}, {"softwareName", m_software->currentText()}, {"accountName", input.accountName}};
     m_result->clear();
-    m_client->submit(input, current);
+    m_client->submit(input, current, m_catalog);
 }
 
 void SubjectBalanceImportWidget::updateBusy(bool busy)
 {
     setProperty("sessionBusyupdateBusy", busy);
     m_form->setEnabled(!busy);
-    m_submit->setEnabled(!busy && !m_catalog.isEmpty());
+    bool available = !m_catalog.isEmpty();
+    for (const auto &software : m_catalog)
+        if (software.id == m_software->currentData().toInt()) available = software.requirementsAvailable;
+    m_submit->setEnabled(!busy && !m_requirements->loading() && available);
     m_history->setEnabled(!busy);
     m_resume->setEnabled(!busy && m_history->count() > 0);
     if (!busy) m_stop->setEnabled(false);

@@ -24,6 +24,10 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="BackupRestoreWidget.h" />
+    <QtMoc Include="BakRestoreWidget.h" />
+    <ClCompile Include="BakRestoreWidget.cpp" />
+    <ClInclude Include="Common\BakBackupRestorer.h" />
+    <ClCompile Include="Common\BakBackupRestorer.cpp" />
     <ClCompile Include="BackupRestoreWidget.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -15,6 +15,23 @@
 namespace {
 const QString taskId = "ddda7f90-6c4d-4a14-a876-2cb9104d4123";
 
+QJsonArray fileRequirements()
+{
+    QFile file(QFINDTESTDATA("fixtures/subject-balance-requirements.json"));
+    if (!file.open(QIODevice::ReadOnly)) qFatal("Missing requirements fixture");
+    return QJsonDocument::fromJson(file.readAll()).array();
+}
+
+QByteArray requirementsBody(const QJsonArray &rules = fileRequirements())
+{
+    return QJsonDocument(QJsonObject{{"state", 1000}, {"data", rules}}).toJson();
+}
+
+QList<BalanceImportSoftware> testCatalog()
+{
+    return SubjectBalanceImport::applyRequirements(fileRequirements());
+}
+
 QByteArray resultBody(int status, const QString &id = taskId)
 {
     const QJsonObject detail{{"Id", id}, {"Status", status}, {"AsStartDate", "2025-11-01T00:00:00"},
@@ -56,6 +73,14 @@ public:
     }
     QString host() const { return "http://127.0.0.1:" + QString::number(serverPort()); }
 };
+
+void prepareRequirements(BalanceImportRequirements &requirements, FakeServer &server)
+{
+    server.response = [](const QByteArray &) { return requirementsBody(); };
+    requirements.load(server.host());
+    QTRY_VERIFY(!requirements.loading());
+    QVERIFY(!requirements.catalog().isEmpty());
+}
 }
 
 class SubjectBalanceImportTests : public QObject
@@ -87,7 +112,7 @@ private slots:
 
     void catalogAndValidation() {
         QString error;
-        const auto catalog = SubjectBalanceImport::softwareCatalog(&error);
+        const auto catalog = SubjectBalanceImport::applyRequirements(fileRequirements(), &error);
         QVERIFY2(error.isEmpty(), qPrintable(error));
         QCOMPARE(catalog.size(), 70);
         QSet<int> ids;
@@ -98,22 +123,235 @@ private slots:
                 QVERIFY(!file.extensions.isEmpty());
                 i.files.insert(file.key, sample(file.key + "." + file.extensions.first()));
             }
-            QVERIFY2(SubjectBalanceImport::validate(i, session("http://127.0.0.1")).isEmpty(), qPrintable(software.name));
+            QVERIFY2(SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty(), qPrintable(software.name));
             for (const auto &file : software.files) if (file.required) {
                 auto missing = i; missing.files.remove(file.key);
-                QVERIFY2(!SubjectBalanceImport::validate(missing, session("http://127.0.0.1")).isEmpty(), qPrintable(software.name + file.key));
+                QVERIFY2(!SubjectBalanceImport::validate(missing, session("http://127.0.0.1"), testCatalog()).isEmpty(), qPrintable(software.name + file.key));
             }
         }
         auto i = input(); i.software = 22001; i.files.clear(); i.files["subject"] = sample("subjects.txt");
-        QVERIFY(SubjectBalanceImport::validate(i, session("http://127.0.0.1")).contains("TXT"));
+        QVERIFY(SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty()); // Special combinations are checked by the server.
         i.files["trialbalance"] = sample();
-        QVERIFY(SubjectBalanceImport::validate(i, session("http://127.0.0.1")).isEmpty());
+        QVERIFY(SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty());
         i.files["voucher"] = sample();
-        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1")).isEmpty());
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty());
         i = input(); i.files["trialbalance"] = m_temp.path();
-        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1")).isEmpty());
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty());
         i = input(); i.files["trialbalance"] = sample("bad.zip");
-        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1")).isEmpty());
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), testCatalog()).isEmpty());
+    }
+
+    void dynamicRequirementsAndValidation() {
+        auto rules = QJsonArray{QJsonObject{{"softwareId", 99999}, {"softwareName", "Template"},
+            {"subjectStatus", 1}, {"trialBalanceStatus", 4}, {"voucherStatus", 3}, {"remark", "server-only"}}};
+        QString error;
+        const auto catalog = SubjectBalanceImport::applyRequirements(rules, &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        auto i = input(); i.files.clear();
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), catalog).isEmpty());
+        i.files["subject"] = sample();
+        QVERIFY(SubjectBalanceImport::validate(i, session("http://127.0.0.1"), catalog).isEmpty());
+        i.files["voucher"] = sample();
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), catalog).isEmpty());
+        i.files.remove("voucher");
+        i.software = 2001; // Missing software never falls back to a local upload requirement.
+        QVERIFY(!SubjectBalanceImport::validate(i, session("http://127.0.0.1"), catalog).isEmpty());
+        QVERIFY(!SubjectBalanceImport::validate(input(), session("http://127.0.0.1"), {}).isEmpty());
+        for (const auto &software : catalog) if (software.id == 99999) {
+            QCOMPARE(software.files.size(), 2);
+            QVERIFY(software.requirementsAvailable);
+            for (const auto &slot : software.files) {
+                if (slot.key == "subject") QVERIFY(slot.required);
+                if (slot.key == "trialbalance") QVERIFY(slot.special && !slot.required);
+            }
+        }
+        for (const auto &bad : {QJsonValue(0), QJsonValue(5), QJsonValue(1.5), QJsonValue("1"), QJsonValue()}) {
+            auto item = rules.first().toObject(); item["subjectStatus"] = bad;
+            QVERIFY(SubjectBalanceImport::applyRequirements(QJsonArray{item}, &error).isEmpty());
+            QVERIFY(!error.isEmpty());
+        }
+        QVERIFY(SubjectBalanceImport::applyRequirements({}).isEmpty());
+        rules.append(rules.first());
+        QVERIFY(SubjectBalanceImport::applyRequirements(rules).isEmpty());
+    }
+
+    void anonymousRequirementsCacheAndFailure() {
+        QTemporaryDir cache;
+        FakeServer server;
+        BalanceImportRequirements loader(nullptr, cache.path());
+        prepareRequirements(loader, server);
+        QCOMPARE(server.requests.size(), 1);
+        const auto request = server.requests.first().toLower();
+        QVERIFY(request.startsWith("get /api/importfromother/getsoftwarefilerequirements http/"));
+        for (const auto &header : {"authorization:", "cookie:", "withcredentials:", "asid:"}) QVERIFY(!request.contains(header));
+        QCOMPARE(request.mid(request.indexOf("\r\n\r\n") + 4).size(), 0);
+        const auto paths = QDir(cache.path()).entryList({"*.json"}, QDir::Files);
+        QCOMPARE(paths.size(), 1);
+        QFile cached(QDir(cache.path()).filePath(paths.first()));
+        QVERIFY(cached.open(QIODevice::ReadOnly)); const auto original = cached.readAll(); cached.close();
+        QVERIFY(QJsonDocument::fromJson(original).isArray());
+        loader.load(server.host());
+        QVERIFY(!loader.loading()); QCOMPARE(server.requests.size(), 1);
+        server.response = [](const QByteArray &) { return QByteArray("{\"state\":1000,\"data\":[]}"); };
+        BalanceImportRequirements restarted(nullptr, cache.path());
+        restarted.load(server.host());
+        QTRY_VERIFY(!restarted.loading());
+        QVERIFY(!restarted.catalog().isEmpty());
+        QVERIFY(restarted.message().contains(QStringLiteral("上次有效")));
+        QVERIFY(cached.open(QIODevice::ReadOnly)); QCOMPARE(cached.readAll(), original); cached.close();
+        FakeServer other;
+        other.httpStatus = 503;
+        other.response = [](const QByteArray &) { return requirementsBody(); };
+        restarted.load(other.host());
+        QVERIFY(restarted.catalog().isEmpty());
+        QTRY_VERIFY(!restarted.loading());
+        QVERIFY(restarted.catalog().isEmpty());
+        QVERIFY(restarted.message().contains(QStringLiteral("配置不可用")));
+        QVERIFY(cached.open(QIODevice::WriteOnly | QIODevice::Truncate)); cached.write("broken"); cached.close();
+        BalanceImportRequirements corrupt(nullptr, cache.path()); corrupt.load(server.host());
+        QTRY_VERIFY(!corrupt.loading()); QVERIFY(corrupt.catalog().isEmpty());
+    }
+
+    void requirementsSwitchTimeoutAndSaveFailure() {
+        QTemporaryDir cache;
+        FakeServer delayed, current;
+        current.response = [](const QByteArray &) { return requirementsBody(); };
+        BalanceImportRequirements loader(nullptr, cache.path());
+        loader.load(delayed.host());
+        QTRY_COMPARE(delayed.requests.size(), 1);
+        loader.load(current.host());
+        QTRY_VERIFY(!loader.loading());
+        QVERIFY(!loader.catalog().isEmpty());
+        QCOMPARE(loader.host(), current.host());
+        FakeServer silent;
+        loader.load(silent.host());
+        QTRY_VERIFY_WITH_TIMEOUT(!loader.loading(), 6500);
+        QVERIFY(loader.catalog().isEmpty());
+        QFile blocked(cache.filePath("not-a-directory")); QVERIFY(blocked.open(QIODevice::WriteOnly)); blocked.close();
+        BalanceImportRequirements unwritable(nullptr, blocked.fileName());
+        unwritable.load(current.host());
+        QTRY_VERIFY(!unwritable.loading());
+        QVERIFY(unwritable.catalog().isEmpty());
+        QVERIFY(unwritable.message().contains(QStringLiteral("无法保存")));
+        loader.load("http://account:password@127.0.0.1");
+        QVERIFY(!loader.loading()); QVERIFY(loader.catalog().isEmpty());
+        loader.load("file:///local");
+        QVERIFY(!loader.loading()); QVERIFY(loader.catalog().isEmpty());
+    }
+
+    void requirementsWidgetHostSwitch() {
+        QTemporaryDir cache;
+        FakeServer first, second;
+        BalanceImportRequirements loader(nullptr, cache.path());
+        prepareRequirements(loader, first);
+        GlobalData global;
+        SubjectBalanceImportWidget widget(&global, nullptr, cache.filePath("history.json"), &loader);
+        auto *software = widget.findChild<QComboBox*>("balanceSoftware");
+        software->setCurrentIndex(software->findData(99999));
+        widget.selectSourceFile("trialbalance", sample());
+        auto *host = widget.findChild<QComboBox*>("balanceImporterHost");
+        host->addItem("Second", second.host()); host->setCurrentIndex(host->count() - 1);
+        QVERIFY(!widget.findChild<QPushButton*>("balanceSubmit")->isEnabled());
+        QVERIFY(widget.property("sessionBusyFileRequirements").toBool());
+        QVERIFY(!widget.findChild<QLineEdit*>("balanceFile_trialbalance"));
+        // Cancel the stalled second request and reuse the first host's snapshot.
+        host->setCurrentIndex(host->findData(first.host()));
+        QVERIFY(!widget.property("sessionBusyFileRequirements").toBool());
+        QVERIFY(widget.findChild<QLineEdit*>("balanceFile_trialbalance")->text().isEmpty());
+        QCOMPARE(first.requests.size(), 1);
+        auto row = QJsonObject{{"softwareId", 99999}, {"softwareName", "Template"},
+            {"subjectStatus", 1}, {"trialBalanceStatus", 4}, {"voucherStatus", 3}, {"remark", "hidden remark"}};
+        second.response = [row](const QByteArray &) { return requirementsBody(QJsonArray{row}); };
+        host->setCurrentIndex(host->findData(second.host()));
+        QTRY_VERIFY(!loader.loading());
+        QVERIFY(widget.findChild<QLineEdit*>("balanceFile_subject"));
+        QVERIFY(!widget.findChild<QLineEdit*>("balanceFile_voucher"));
+        QCOMPARE(software->findData(2001), -1);
+        QCOMPARE(software->count(), 2); // Only the server's one software plus the placeholder.
+    }
+
+    void serverSoftwareListRefreshAndImport() {
+        QTemporaryDir cache;
+        FakeServer server;
+        const int newId = 900001;
+        QJsonArray rules{QJsonObject{{"softwareId", newId}, {"softwareName", QStringLiteral("新增财务软件")},
+            {"subjectStatus", 1}, {"trialBalanceStatus", 4}, {"voucherStatus", 3}, {"remark", ""}}};
+        for (const auto &value : fileRequirements()) {
+            const auto row = value.toObject();
+            if (row.value("softwareId").toInt() == 22001 || row.value("softwareId").toInt() == 2001)
+                rules.append(row);
+        }
+        server.response = [&rules](const QByteArray &request) {
+            if (request.contains("GetSoftwareFileRequirements")) return requirementsBody(rules);
+            return request.startsWith("POST")
+                ? QJsonDocument(QJsonObject{{"Code", 0}, {"Data", taskId}}).toJson() : resultBody(1);
+        };
+        BalanceImportRequirements loader(nullptr, cache.path());
+        loader.load(server.host());
+        QTRY_VERIFY(!loader.loading());
+        QCOMPARE(loader.catalog().size(), 3);
+        QCOMPARE(loader.catalog().first().id, newId);
+        QVERIFY(!loader.catalog().first().supportsAuxiliaryFiles);
+        for (const auto &software : loader.catalog()) {
+            if (software.id == 2001) QVERIFY(software.supportsAuxiliaryFiles);
+            if (software.id == 22001) for (const auto &slot : software.files)
+                if (slot.key == "subject") QVERIFY(slot.extensions.contains("txt"));
+        }
+        GlobalData global; global.m_strSN = "test-owner"; global.m_nServiceId = 45;
+        global.m_strNingMengCookie = "test-session-token";
+        SubjectBalanceImportWidget widget(&global, nullptr, cache.filePath("history.json"), &loader);
+        auto *software = widget.findChild<QComboBox*>("balanceSoftware");
+        QCOMPARE(software->count(), 4);
+        QCOMPARE(software->itemData(1).toInt(), newId);
+        software->completer()->setCompletionPrefix(QStringLiteral("新增"));
+        QCOMPARE(software->completer()->completionCount(), 1);
+        software->setCurrentIndex(software->findData(newId));
+        QVERIFY(widget.findChild<QLineEdit*>("balanceFile_subject"));
+        QVERIFY(widget.findChild<QLineEdit*>("balanceFile_trialbalance"));
+        QVERIFY(!widget.findChild<QLineEdit*>("balanceFile_voucher"));
+        auto *submit = widget.findChild<QPushButton*>("balanceSubmit");
+        submit->click();
+        QCOMPARE(server.requests.size(), 1); // Missing required subject blocks the upload.
+        widget.selectSourceFile("subject", sample());
+        submit->click();
+        QTRY_VERIFY(widget.findChild<QLabel*>("balanceStatus")->text().contains(QStringLiteral("成功")));
+        QCOMPARE(server.requests.size(), 3);
+        QVERIFY(server.requests.at(1).startsWith("POST"));
+        QVERIFY(server.requests.at(1).contains("software=900001"));
+        QVERIFY(server.requests.at(1).contains("name=\"subject\""));
+        QVERIFY(!server.requests.at(1).contains("name=\"voucher\""));
+
+        auto renamed = rules.first().toObject();
+        renamed["softwareName"] = QStringLiteral("更新后的软件名称");
+        rules = QJsonArray{renamed};
+        widget.findChild<QPushButton*>("balanceRefreshRequirements")->click();
+        QVERIFY(!software->isEnabled());
+        QTRY_VERIFY(!loader.loading());
+        QCOMPARE(software->count(), 2);
+        QCOMPARE(software->currentData().toInt(), newId);
+        QCOMPARE(software->currentText(), QStringLiteral("更新后的软件名称"));
+        QCOMPARE(software->findData(2001), -1);
+        QVERIFY(widget.findChild<QLineEdit*>("balanceFile_subject")->text().isEmpty());
+        QCOMPARE(widget.findChild<QLineEdit*>("balanceAccountName")->text(), QStringLiteral("更新后的软件名称账套"));
+        software->completer()->setCompletionPrefix(QStringLiteral("更新后"));
+        QCOMPARE(software->completer()->completionCount(), 1);
+
+        server.httpStatus = 503;
+        BalanceImportRequirements restarted(nullptr, cache.path());
+        restarted.load(server.host());
+        QTRY_VERIFY(!restarted.loading());
+        QCOMPARE(restarted.catalog().size(), 1);
+        QCOMPARE(restarted.catalog().first().id, newId);
+        QCOMPARE(restarted.catalog().first().name, QStringLiteral("更新后的软件名称"));
+        // A valid response that removes the selected software must clear its selection and files.
+        server.httpStatus = 200;
+        renamed["softwareId"] = 900002;
+        rules = QJsonArray{renamed};
+        widget.findChild<QPushButton*>("balanceRefreshRequirements")->click();
+        QTRY_VERIFY(!loader.loading());
+        QCOMPARE(software->findData(newId), -1);
+        QCOMPARE(software->currentIndex(), -1);
+        QVERIFY(!widget.findChild<QLineEdit*>("balanceFile_subject"));
     }
 
     void resultContract() {
@@ -144,8 +382,8 @@ private slots:
         SubjectBalanceImportClient client;
         QSignalSpy accepted(&client, &SubjectBalanceImportClient::accepted), outcome(&client, &SubjectBalanceImportClient::outcome);
         auto i = input(); auto s = session(server.host());
-        client.submit(i, s);
-        client.submit(i, s); // A second click must not submit again.
+        client.submit(i, s, testCatalog());
+        client.submit(i, s, testCatalog()); // A second click must not submit again.
         QTRY_COMPARE(outcome.count(), 1);
         QCOMPARE(accepted.count(), 1);
         QCOMPARE(outcome.first().at(0).toInt(), 2);
@@ -179,7 +417,7 @@ private slots:
         SubjectBalanceImportClient client;
         QSignalSpy failed(&client, &SubjectBalanceImportClient::failed);
         QSignalSpy accepted(&client, &SubjectBalanceImportClient::accepted);
-        client.submit(input(), session(server.host()));
+        client.submit(input(), session(server.host()), testCatalog());
         QTRY_COMPARE(failed.count(), 1);
         QCOMPARE(failed.first().at(0).toString(), message);
         QVERIFY(!failed.first().at(1).toBool());
@@ -199,7 +437,7 @@ private slots:
         SubjectBalanceImportClient client;
         QSignalSpy accepted(&client, &SubjectBalanceImportClient::accepted), outcome(&client, &SubjectBalanceImportClient::outcome);
         QSignalSpy failed(&client, &SubjectBalanceImportClient::failed);
-        client.submit(input(), session(server.host()));
+        client.submit(input(), session(server.host()), testCatalog());
         QTRY_VERIFY(!client.busy());
         QCOMPARE(failed.count(), 0);
         QCOMPARE(accepted.count(), 1);
@@ -232,12 +470,12 @@ private slots:
         QTRY_COMPARE(outcome.count(), 1);
         QCOMPARE(outcome.first().at(0).toInt(), 3);
         server.httpStatus = 401;
-        client.submit(input(), session(server.host()));
+        client.submit(input(), session(server.host()), testCatalog());
         QTRY_COMPARE(failure.count(), 1);
         QVERIFY(!failure.last().at(1).toBool());
         server.httpStatus = 200;
         server.response = [](const QByteArray &) { return QByteArray("unparseable"); };
-        client.submit(input(), session(server.host()));
+        client.submit(input(), session(server.host()), testCatalog());
         QTRY_COMPARE(failure.count(), 2);
         QVERIFY(failure.last().at(1).toBool());
         const int count = server.requests.size();
@@ -271,17 +509,20 @@ private slots:
         i.files[QStringLiteral("客户")] = sample("customers.xlsx");
         SubjectBalanceImportClient client;
         QSignalSpy done(&client, &SubjectBalanceImportClient::outcome);
-        client.submit(i, session(server.host()));
+        client.submit(i, session(server.host()), testCatalog());
         QTRY_COMPARE(done.count(), 1);
         QVERIFY(server.requests.first().contains(QStringLiteral("name=\"客户\"").toUtf8()));
         QVERIFY(server.requests.first().contains("isZeroImport=1"));
         i.files["bad\r\nheader"] = sample();
-        QVERIFY(!SubjectBalanceImport::validate(i, session(server.host())).isEmpty());
+        QVERIFY(!SubjectBalanceImport::validate(i, session(server.host()), testCatalog()).isEmpty());
     }
 
     void softwareSearchAndPopupSpacing() {
         GlobalData global;
-        SubjectBalanceImportWidget widget(&global, nullptr, m_temp.filePath("search-history.json"));
+        FakeServer rulesServer;
+        BalanceImportRequirements requirements(nullptr, m_temp.filePath("requirements"));
+        prepareRequirements(requirements, rulesServer);
+        SubjectBalanceImportWidget widget(&global, nullptr, m_temp.filePath("search-history.json"), &requirements);
         QFile theme(":/Resource/qss/workspace.css"); QVERIFY(theme.open(QIODevice::ReadOnly));
         widget.setStyleSheet(QString::fromUtf8(theme.readAll()));
         widget.setAttribute(Qt::WA_DontShowOnScreen);
@@ -350,10 +591,14 @@ private slots:
     void widgetAndHistory() {
         FakeServer server;
         server.response = [](const QByteArray &r) {
+            if (r.contains("GetSoftwareFileRequirements")) return requirementsBody();
             return r.startsWith("POST") ? QJsonDocument(QJsonObject{{"Code", 0}, {"Data", taskId}}).toJson() : resultBody(1);
         };
         GlobalData global; global.m_strSN = "test-owner"; global.m_nServiceId = 45; global.m_strNingMengCookie = "test-session-token";
-        SubjectBalanceImportWidget widget(&global, nullptr, m_temp.filePath("history.json"));
+        FakeServer rulesServer;
+        BalanceImportRequirements requirements(nullptr, m_temp.filePath("requirements"));
+        prepareRequirements(requirements, rulesServer);
+        SubjectBalanceImportWidget widget(&global, nullptr, m_temp.filePath("history.json"), &requirements);
         widget.setAttribute(Qt::WA_DontShowOnScreen);
         auto *software = widget.findChild<QComboBox*>("balanceSoftware");
         QCOMPARE(software->count(), 71);
@@ -373,16 +618,18 @@ private slots:
         widget.findChild<QComboBox*>("balanceTaxType")->setCurrentIndex(1);
         auto *host = widget.findChild<QComboBox*>("balanceImporterHost");
         QComboBox shared; populateProfessionalImporterHosts(&shared);
-        QCOMPARE(host->count(), shared.count()); QCOMPARE(host->currentData(), shared.currentData());
+        QCOMPARE(host->count(), shared.count() + 1); QCOMPARE(host->currentData().toString(), rulesServer.host());
         host->addItem("Mock", server.host()); host->setCurrentIndex(host->count() - 1);
+        QTRY_VERIFY(!requirements.loading());
+        widget.findChild<QLineEdit*>("balanceFile_trialbalance")->setText(sample());
         widget.findChild<QPushButton*>("balanceSubmit")->click();
         QTRY_VERIFY(widget.findChild<QLabel*>("balanceStatus")->text().contains(QStringLiteral("成功")));
         auto *history = widget.findChild<QComboBox*>("balanceHistory");
         QCOMPARE(history->count(), 1);
         QVERIFY(!QJsonDocument(QJsonObject::fromVariantMap(history->currentData().toMap())).toJson().contains("test-session-token"));
-        host->setCurrentIndex(0); // Resume must use the saved host, never the form host.
+        host->setCurrentIndex(host->findData(rulesServer.host())); // Resume must use the saved host, never the form host.
         widget.findChild<QPushButton*>("balanceResumeQuery")->click();
-        QTRY_COMPARE(server.requests.size(), 3);
+        QTRY_COMPARE(server.requests.size(), 4);
         QTRY_VERIFY(widget.findChild<QPushButton*>("balanceSubmit")->isEnabled());
         global.m_strSN = "another-owner"; widget.reloadHistory(); QCOMPARE(history->count(), 0);
         global.m_strSN = "test-owner"; global.m_nServiceId = 999; widget.reloadHistory(); QCOMPARE(history->count(), 0);
@@ -406,7 +653,7 @@ private slots:
         QDir().mkpath(files.filePath("nested"));
         create(QStringLiteral("nested/甲公司_科目表.xlsx"));
         BalanceImportSoftware selected;
-        for (const auto &software : SubjectBalanceImport::softwareCatalog()) if (software.id == 1007) selected = software;
+        for (const auto &software : testCatalog()) if (software.id == 1007) selected = software;
         const auto suggestions = suggestBalanceFiles(selected, voucher, {{"voucher", voucher}});
         QCOMPARE(suggestions.matches.value("trialbalance"), balance);
         QCOMPARE(suggestions.matches.value("subject"), subject);
@@ -418,7 +665,10 @@ private slots:
         QCOMPARE(ambiguous.matches.value("subject"), ambiguous.candidates.value("subject").first());
 
         GlobalData global;
-        SubjectBalanceImportWidget widget(&global, nullptr, files.filePath("history.json"));
+        FakeServer rulesServer;
+        BalanceImportRequirements requirements(nullptr, m_temp.filePath("requirements"));
+        prepareRequirements(requirements, rulesServer);
+        SubjectBalanceImportWidget widget(&global, nullptr, files.filePath("history.json"), &requirements);
         auto *software = widget.findChild<QComboBox*>("balanceSoftware");
         software->setCurrentIndex(software->findData(1007));
         widget.selectSourceFile("voucher", voucher);
@@ -450,7 +700,10 @@ private slots:
         const auto voucher = create(QStringLiteral("凭证导入导出(1).xlsx"));
         create(QStringLiteral("科目(8).xlsx.补齐前.bak"));
         GlobalData global;
-        SubjectBalanceImportWidget widget(&global, nullptr, files.filePath("history.json"));
+        FakeServer rulesServer;
+        BalanceImportRequirements requirements(nullptr, m_temp.filePath("requirements"));
+        prepareRequirements(requirements, rulesServer);
+        SubjectBalanceImportWidget widget(&global, nullptr, files.filePath("history.json"), &requirements);
         widget.setAttribute(Qt::WA_DontShowOnScreen);
         auto *software = widget.findChild<QComboBox*>("balanceSoftware");
         software->setCurrentIndex(software->findData(2011));
