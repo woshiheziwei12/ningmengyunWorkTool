@@ -4,12 +4,16 @@
 #include "Common/WecomSessionStore.h"
 #include "wecomdocumentwidget.h"
 #include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QTimer>
 #include <QTemporaryDir>
@@ -77,7 +81,9 @@ public:
     bool hasSavedSession() const override { return saved; }
     void saveSession(SessionReply reply) override { if (deferSave) saving = reply; else reply({}); }
     void resolveSave(const QString &error = {}) { auto callback = saving; saving = {}; callback(error); }
-    void bootstrap() { emit bootstrapReceived(QUrl("https://doc.weixin.qq.com/dop-api/opendoc?id=" + documentId()), metadata()); }
+    void bootstrap(const QString &id = documentId()) {
+        emit bootstrapReceived(QUrl("https://doc.weixin.qq.com/dop-api/opendoc?id=" + id), metadata());
+    }
     void resolve(QJsonObject body, const QString &error = {}) { auto callback = pending.takeFirst(); callback(body, error); }
 };
 QJsonObject sessionCookie() {
@@ -139,7 +145,9 @@ void runTests() {
     require(selectSheets(meta,QDate(2027,2,1)).isEmpty(), "no future sheet");
     require(validateUrl(defaultUrl(), &error), "fixed document accepted");
     require(!validateUrl(QUrl("https://doc.weixin.qq.com.evil.test/sheet/" + documentId()), &error), "lookalike host rejected");
-    require(!validateUrl(QUrl("https://doc.weixin.qq.com/sheet/other"), &error), "other document rejected");
+    require(validateUrl(QUrl("https://doc.weixin.qq.com/sheet/other"), &error), "another WeCom spreadsheet accepted");
+    require(!validateUrl(QUrl("https://doc.weixin.qq.com/doc/other"), &error), "non-spreadsheet link rejected");
+    require(!validateUrl(QUrl("https://doc.weixin.qq.com/sheet/other%2Fextra"), &error), "nested path rejected");
     require(!validateUrl(QUrl("http://doc.weixin.qq.com/sheet/" + documentId()), &error), "http rejected");
     Sheet sheet; sheet.id="10-15"; sheet.name="10-15";
     require(parseSheet(response(), &sheet, &error), "verified protobuf types");
@@ -202,6 +210,102 @@ void runTests() {
     require(browser.pending.isEmpty() && finished==3,"cancelled async timer does not restart reading");
     reader.read(defaultUrl(),QDate(2028,1,1)); browser.resolve(metadata());
     require(!reader.isBusy() && result.sheets.isEmpty() && finished==4,"zero matching tables completes without fetching history");
+    const QUrl nextDocument("https://doc.weixin.qq.com/sheet/second_document?scode=test");
+    reader.read(nextDocument, QDate(2028,1,1));
+    require(browser.last == nextDocument && browser.pending.isEmpty(), "switch navigates to full new link instead of reusing directory");
+    browser.bootstrap();
+    require(reader.isBusy() && finished == 4, "old document bootstrap ignored after switch");
+    browser.bootstrap("second_document");
+    require(finished == 5 && result.toJson().value("documentId").toString() == "second_document", "export identifies the selected document");
+    emit browser.browserError(QStringLiteral("synthetic browser failure"));
+    reader.read(nextDocument, QDate(2028,1,1));
+    require(browser.pending.isEmpty() && browser.last == nextDocument, "idle browser failure invalidates the request cache");
+    browser.bootstrap("second_document");
+    reader.read(nextDocument, QDate(2028,1,1));
+    require(browser.pending.size() == 1, "recovered browser can refresh the directory");
+    emit browser.browserError(QStringLiteral("synthetic browser failure while reading"));
+    require(!reader.isBusy() && browser.stopped, "active browser failure releases the read");
+    browser.resolve(metadata());
+    require(finished == 6, "late reply from the failed browser is ignored");
+    reader.read(nextDocument, QDate(2028,1,1));
+    require(browser.pending.isEmpty() && browser.last == nextDocument, "retry navigates with a new browser after a failed read");
+    browser.bootstrap("second_document");
+    require(finished == 7 && !reader.isBusy(), "retry completes");
+}
+
+void catalogTests()
+{
+    QTemporaryDir directory;
+    require(directory.isValid(), "isolated catalog test directory");
+    const QString path = directory.filePath("WecomDocuments.json");
+    WecomDocumentCatalog first(path), second(path);
+    require(first.load().isEmpty() && first.urlForId(documentId()) == defaultUrl(), "missing catalog keeps default document");
+    require(second.load().isEmpty(), "second instance initially reads the same catalog");
+    const QUrl other("https://doc.weixin.qq.com/sheet/second_document?scode=test%2Bvalue");
+    const QUrl updatedDefault(defaultUrl().toString() + "?scode=replacement");
+    QString error;
+    require(first.save({QStringLiteral("第二张表"), other}, false, &error), "save a new binding");
+    require(second.save({QStringLiteral("项目进度表"), updatedDefault}, true, &error), "update a named binding");
+    require(first.load().isEmpty() && first.entries().size() == 2, "another instance's binding is preserved");
+    require(first.urlForId("second_document") == other && first.urlForId(documentId()) == updatedDefault, "full links survive reload and lookup");
+    require(!first.save({QStringLiteral("重复表格"), other}, false, &error), "a duplicate ID needs confirmation");
+    const QString userPath = directory.filePath("user/WecomDocuments.json");
+    WecomDocumentCatalog userCatalog(userPath);
+    const QUrl userDocument("https://doc.weixin.qq.com/sheet/user_document");
+    require(userCatalog.save({QStringLiteral("用户表格"), userDocument}, false, &error), "seed user fallback catalog");
+    WecomDocumentCatalog preferred(path, userPath);
+    require(preferred.load().isEmpty() && preferred.urlForId("second_document") == other
+        && preferred.urlForId("user_document").isEmpty(), "program catalog takes priority");
+    QFile corrupt(path);
+    require(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate), "open invalid catalog fixture");
+    const QByteArray contents = "{invalid";
+    require(corrupt.write(contents) == contents.size(), "write invalid catalog fixture");
+    corrupt.close();
+    require(!first.save({QStringLiteral("新表"), other}, true, &error), "invalid catalog is preserved after failed save");
+    require(corrupt.open(QIODevice::ReadOnly) && corrupt.readAll() == contents, "invalid catalog never overwritten");
+    corrupt.close();
+    require(!preferred.load().isEmpty() && preferred.urlForId("user_document").isEmpty(), "invalid program catalog reports error without loading fallback");
+    require(QFile::remove(path) && preferred.load().isEmpty()
+        && preferred.urlForId("user_document") == userDocument, "missing program catalog loads user fallback");
+    require(preferred.save({QStringLiteral("第二张表"), other}, false, &error)
+        && !QFile::exists(path) && userCatalog.load().isEmpty() && userCatalog.urlForId("second_document") == other,
+        "changing active user catalog keeps it as the source");
+}
+
+void catalogWidgetTests()
+{
+    QTemporaryDir directory;
+    require(directory.isValid(), "isolated catalog UI directory");
+    const QString path = directory.filePath("WecomDocuments.json");
+    WecomDocumentWidget widget(nullptr, path);
+    widget.setAttribute(Qt::WA_DontShowOnScreen);
+    widget.show();
+    auto *selector = widget.findChild<QComboBox*>("wecomDocumentSelector");
+    auto *add = widget.findChild<QPushButton*>("btnWecomAddDocument");
+    auto *manual = widget.findChild<QPushButton*>("btnWecomManualAccess");
+    require(selector && !selector->isEditable() && selector->count() == 1 && add && manual, "saved selector and separate visit/save actions");
+    const QString name = QStringLiteral("演示表格");
+    const QString link = "https://doc.weixin.qq.com/sheet/demo_document";
+    QTimer::singleShot(0, &widget, [&]() {
+        auto *dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        require(dialog, "add opens modal dialog");
+        dialog->findChild<QLineEdit*>("wecomDocumentNameInput")->setText(name);
+        dialog->findChild<QLineEdit*>("wecomDocumentLinkInput")->setText(link);
+        dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->click();
+    });
+    add->click();
+    require(selector->count() == 2 && selector->currentText() == name && selector->currentData().toUrl() == QUrl(link),
+        "saved table appears by name and is selected");
+    WecomDocumentWidget reopened(nullptr, path);
+    require(reopened.findChild<QComboBox*>("wecomDocumentSelector")->findText(name) >= 0, "reopened page loads saved binding");
+    QTimer::singleShot(0, &widget, [&]() {
+        auto *dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        require(dialog && dialog->findChild<QLineEdit*>("wecomDocumentLinkInput")->isVisible()
+            && !dialog->findChild<QLineEdit*>("wecomDocumentNameInput")->isVisible(), "manual visit requires only a link");
+        dialog->reject();
+    });
+    manual->click();
+    require(selector->count() == 2, "cancelled visit leaves saved choices alone");
 }
 void captureTests(const QString &directory) {
     QFile file(directory + "/metadata.json"); require(file.open(QIODevice::ReadOnly),"open capture metadata fixture");
@@ -230,7 +334,8 @@ int main(int argc,char **argv) {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication app(argc,argv);
     const auto arguments=app.arguments();
-    if (arguments.contains("--session-smoke")) {
+    const bool recoverySmoke = arguments.contains("--session-recovery-smoke");
+    if (arguments.contains("--session-smoke") || recoverySmoke) {
         const QString profile = QCoreApplication::applicationDirPath()+"/session-smoke-"+QString::number(QDateTime::currentMSecsSinceEpoch());
         require(QDir().mkpath(profile), "create isolated WebView session profile");
         auto persistent=sessionCookie(); persistent["name"]="LemonWecomPersistentTest";
@@ -238,12 +343,27 @@ int main(int argc,char **argv) {
         const QJsonArray original{sessionCookie(), persistent}; QString error;
         require(WecomSessionStore::save(profile+"/session.dat",original,&error), "seed encrypted synthetic restart snapshot");
         WecomBrowser browser(nullptr,profile);
-        QObject::connect(&browser,&WecomBrowser::browserError,&app,[&](const QString &){ app.exit(2); });
+        bool retrying = false;
+        QObject::connect(&browser,&WecomBrowser::browserError,&app,[&](const QString &message) {
+            if (!recoverySmoke || retrying) {
+                fprintf(stderr, "BROWSER: %s\n", message.toUtf8().constData());
+                app.exit(2);
+                return;
+            }
+            retrying = true;
+            QTimer::singleShot(0, &app, [&]() { browser.navigate(defaultUrl()); });
+        });
         bool saving=false;
         QObject::connect(&browser,&WecomBrowser::sessionStatus,&app,[&](const QString &){
-            if (saving) return; saving=true;
+            if (saving) return;
             // Verify actual WebView2 import/export without making a network request.
             browser.stop();
+            if (recoverySmoke && !retrying) {
+                fprintf(stdout, "READY: %s\n", profile.toUtf8().constData());
+                fflush(stdout);
+                return;
+            }
+            saving=true;
             browser.saveSession([&](const QString &error) {
                 QJsonArray restored; QString loadError;
                 require(error.isEmpty() && WecomSessionStore::load(profile+"/session.dat",&restored,&loadError), "WebView2 cookie manager exports restored session");
@@ -265,7 +385,7 @@ int main(int argc,char **argv) {
         QTimer::singleShot(45000,&app,[&](){fprintf(stderr,"BROWSER: navigation timeout\n");app.exit(3);});
         browser.navigate(defaultUrl()); return app.exec();
     }
-    sessionTests(); runTests();
+    sessionTests(); runTests(); catalogTests(); catalogWidgetTests();
     runWecomLocalServerTests(arguments.contains("--client-script") ? arguments.value(arguments.indexOf("--client-script")+1) : QString());
     if (arguments.contains("--capture-dir")) captureTests(arguments.value(arguments.indexOf("--capture-dir")+1));
     WecomDocumentWidget widget; widget.resize(1000,650); widget.setAttribute(Qt::WA_DontShowOnScreen); widget.show(); app.processEvents();

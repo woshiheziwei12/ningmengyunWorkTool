@@ -203,11 +203,17 @@ void parseBatch(const QByteArray &bytes, WecomDocument::Sheet *sheet)
 namespace WecomDocument {
 QString documentId() { return QStringLiteral("e3_ARwAqwY-AAkCNmen80OXPQyS100NJ"); }
 QUrl defaultUrl() { return QUrl("https://doc.weixin.qq.com/sheet/" + documentId()); }
+QString documentIdFromUrl(const QUrl &url)
+{
+    if (!url.isValid() || url.scheme() != "https" || url.host() != "doc.weixin.qq.com"
+        || url.port(443) != 443 || url.authority().contains('@')) return {};
+    static const QRegularExpression sheetPath(QStringLiteral("\\A/sheet/([A-Za-z0-9_-]+)\\z"));
+    return sheetPath.match(url.path(QUrl::FullyEncoded)).captured(1);
+}
 bool validateUrl(const QUrl &url, QString *error)
 {
-    const bool valid = url.isValid() && url.scheme() == "https" && url.host() == "doc.weixin.qq.com"
-        && url.port(443) == 443 && url.userInfo().isEmpty() && url.path() == defaultUrl().path();
-    if (!valid && error) *error = QStringLiteral("请输入“2026-运营支持组项目进度表”的企业微信文档链接。当前功能仅支持这份文档。");
+    const bool valid = !documentIdFromUrl(url).isEmpty();
+    if (!valid && error) *error = QStringLiteral("请输入 https://doc.weixin.qq.com/sheet/ 开头的企业微信表格链接。");
     return valid;
 }
 QDate sheetDate(const QString &name, int year)
@@ -325,7 +331,7 @@ QJsonObject Snapshot::toJson() const
             {"error", sheet.error}, {"cells", cells}});
     }
     // Share codes, request URLs, browser state and authentication tokens never enter exports.
-    return {{"schemaVersion", 1}, {"documentId", documentId()}, {"title", title}, {"fromDate", fromDate.toString(Qt::ISODate)},
+    return {{"schemaVersion", 1}, {"documentId", documentId}, {"title", title}, {"fromDate", fromDate.toString(Qt::ISODate)},
         {"fetchedAt", fetchedAt.toUTC().toString(Qt::ISODate)}, {"coordinateBase", 0}, {"complete", complete},
         {"cancelled", cancelled}, {"sheets", tables}};
 }

@@ -19,7 +19,12 @@
     <QtMoc Include="Common\WecomLocalServer.h" />
     <ClCompile Include="Common\WecomLocalServer.cpp" />
     <ClInclude Include="Common\WecomDocumentData.h" />
+    <ClInclude Include="Common\WecomDocumentCatalog.h" />
+    <ClCompile Include="Common\WecomDocumentCatalog.cpp" />
     <ClInclude Include="Common\WecomSessionStore.h" />
+    <ClInclude Include="Common\WindowsDataProtection.h" />
+    <ClInclude Include="Common\LemonWorkToolPaths.h" />
+    <ClInclude Include="Common\comboboxpopup.h" />
     <ClCompile Include="Common\WecomSessionStore.cpp" />
     <ClCompile Include="wecomdocumentwidget.cpp" />
     <ClCompile Include="Common\WecomBrowser.cpp" />
@@ -254,6 +259,7 @@
     <ClInclude Include="Common\globaldata.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="WecomDocuments.json" />
     <None Include="Resource\http\Dev\Account.json" />
     <None Include="Resource\http\Dev2\Account.json" />
     <None Include="Resource\http\Local\Account.json" />
@@ -265,9 +271,11 @@
   </ImportGroup>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
-  <Target Name="DeployWecomWebViewLoader" AfterTargets="Build">
+  <Target Name="DeployWecomFiles" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\Tools\Read-WecomDocument.ps1" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\ThirdParty\WebView2\x86\WebView2Loader.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\WecomDocuments.json" DestinationFolder="$(OutDir)"
+          Condition="!Exists('$(OutDir)WecomDocuments.json')" />
   </Target>
   <Target Name="BuildJetRecovery" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' and '$(BridgeTests)'!='true' and '$(CredentialTests)'!='true'">
     <PropertyGroup>

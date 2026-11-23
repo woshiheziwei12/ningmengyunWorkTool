@@ -22,10 +22,23 @@ using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
 namespace {
 constexpr int MaxResponseBytes = 32 * 1024 * 1024;
+constexpr int BrowserRestartDelayMs = 500;
 bool isDocumentOrigin(const QUrl &url)
 { return url.scheme() == "https" && url.host() == "doc.weixin.qq.com" && url.port(443) == 443; }
-QString hrError(HRESULT hr)
-{ return QStringLiteral("无法启动企业微信登录窗口（0x%1）。请检查 Microsoft Edge WebView2 Runtime 是否已安装。").arg(quint32(hr), 8, 16, QChar('0')); }
+// A closed controller cannot be reused by a later navigation or read.
+bool isBrowserUnavailable(HRESULT hr)
+{
+    return hr == HRESULT_FROM_WIN32(ERROR_INVALID_STATE) || hr == RO_E_CLOSED
+        || hr == RPC_E_DISCONNECTED || hr == HRESULT_FROM_WIN32(RPC_S_SERVER_UNAVAILABLE);
+}
+QString hrError(const QString &stage, HRESULT hr)
+{
+    const QString detail = hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)
+        || hr == HRESULT_FROM_WIN32(ERROR_PRODUCT_UNINSTALLED)
+        ? QStringLiteral("请检查 Microsoft Edge WebView2 Runtime 是否已安装。")
+        : QStringLiteral("请重试。");
+    return QStringLiteral("%1失败（0x%2）。%3").arg(stage).arg(quint32(hr), 8, 16, QChar('0')).arg(detail);
+}
 QString cookieKey(const QJsonObject &cookie)
 { return cookie.value("domain").toString() + '\n' + cookie.value("path").toString() + '\n' + cookie.value("name").toString(); }
 bool cookieJson(ICoreWebView2Cookie *cookie, QJsonObject *object)
@@ -78,6 +91,9 @@ struct WecomBrowser::Impl {
     bool comInitialized = false;
     bool initializing = false;
     bool sessionReady = false;
+    bool resetting = false;
+    bool retryPendingNavigation = false;
+    quint64 generation = 0;
     QUrl pendingUrl;
     QString channel = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString profileDirectory;
@@ -109,12 +125,65 @@ void WecomBrowser::navigate(const QUrl &url)
 {
     if (!isDocumentOrigin(url)) { emit browserError(QStringLiteral("仅允许打开企业微信文档网站。")); return; }
     d->pendingUrl = url;
+    d->retryPendingNavigation = true;
     cancelRequests();
+    navigatePending();
+}
+
+void WecomBrowser::navigatePending()
+{
+    if (d->pendingUrl.isEmpty() || d->resetting) return;
     if (!d->web) { initialize(); return; }
     if (!d->sessionReady) return;
-    const auto address = url.toString(QUrl::FullyEncoded).toStdWString();
+    const auto address = d->pendingUrl.toString(QUrl::FullyEncoded).toStdWString();
     const HRESULT hr = d->web->Navigate(address.c_str());
-    if (FAILED(hr)) emit browserError(hrError(hr));
+    if (FAILED(hr)) {
+        reportBrowserError(QStringLiteral("打开企业微信文档"), hr);
+    } else {
+        d->pendingUrl.clear();
+    }
+}
+
+void WecomBrowser::reportBrowserError(const QString &stage, long result)
+{
+    if (isBrowserUnavailable(result)) {
+        resetFailedBrowser(QStringLiteral("%1失败（0x%2）。企业微信浏览器状态已失效，请重新获取。")
+            .arg(stage).arg(quint32(result), 8, 16, QChar('0')));
+    } else {
+        emit browserError(hrError(stage, result));
+    }
+}
+
+void WecomBrowser::resetFailedBrowser(const QString &message)
+{
+    if (d->resetting) return;
+    d->resetting = true;
+    ++d->generation;
+    cancelRequests();
+    QTimer::singleShot(0, this, [this, message]() {
+        if (d->controller) d->controller->Close();
+        d->cookies.Reset();
+        d->web.Reset();
+        d->controller.Reset();
+        d->initializing = false;
+        d->sessionReady = false;
+        if (d->retryPendingNavigation && !d->pendingUrl.isEmpty()) {
+            d->retryPendingNavigation = false;
+            const QPointer<WecomBrowser> guard(this);
+            emit sessionStatus(QStringLiteral("企业微信浏览器状态已失效，正在重新连接。"));
+            if (!guard) return;
+            QTimer::singleShot(BrowserRestartDelayMs, this, [this]() {
+                d->resetting = false;
+                navigatePending();
+            });
+            return;
+        }
+        d->resetting = false;
+        d->pendingUrl.clear();
+        const QPointer<WecomBrowser> guard(this);
+        emit sessionStatus(QStringLiteral("企业微信浏览器已断开，下次读取会重新连接。"));
+        if (guard) emit browserError(message);
+    });
 }
 
 void WecomBrowser::initialize()
@@ -122,7 +191,7 @@ void WecomBrowser::initialize()
     if (d->initializing || d->web) return;
     if (!d->comInitialized) {
         const HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-        if (FAILED(hr)) { emit browserError(hrError(hr)); return; }
+        if (FAILED(hr)) { reportBrowserError(QStringLiteral("初始化企业微信浏览器"), hr); return; }
         d->comInitialized = true;
     }
     if (!d->loader) {
@@ -136,22 +205,27 @@ void WecomBrowser::initialize()
     if (!QDir().mkpath(profile)) { emit browserError(QStringLiteral("无法创建企业微信登录配置目录。")); return; }
     d->initializing = true;
     QPointer<WecomBrowser> guard(this);
+    const auto generation = d->generation;
     const auto folder = QDir::toNativeSeparators(profile).toStdWString();
     HRESULT hr = create(nullptr, folder.c_str(), nullptr,
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-        [guard](HRESULT result, ICoreWebView2Environment *environment) -> HRESULT {
-            if (!guard) return S_OK;
+        [guard, generation](HRESULT result, ICoreWebView2Environment *environment) -> HRESULT {
+            if (!guard || guard->d->generation != generation) return S_OK;
             if (FAILED(result) || !environment) {
                 guard->d->initializing = false;
-                emit guard->browserError(hrError(result)); return S_OK;
+                guard->reportBrowserError(QStringLiteral("创建企业微信浏览器环境"), FAILED(result) ? result : E_FAIL);
+                return S_OK;
             }
             const HRESULT controllerResult = environment->CreateCoreWebView2Controller(reinterpret_cast<HWND>(guard->winId()),
                 Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                [guard](HRESULT result, ICoreWebView2Controller *controller) -> HRESULT {
-                    if (!guard) { if (controller) controller->Close(); return S_OK; }
+                [guard, generation](HRESULT result, ICoreWebView2Controller *controller) -> HRESULT {
+                    if (!guard || guard->d->generation != generation) { if (controller) controller->Close(); return S_OK; }
                     auto &state = *guard->d;
                     state.initializing = false;
-                    if (FAILED(result) || !controller) { emit guard->browserError(hrError(result)); return S_OK; }
+                    if (FAILED(result) || !controller) {
+                        guard->reportBrowserError(QStringLiteral("创建企业微信登录窗口"), FAILED(result) ? result : E_FAIL);
+                        return S_OK;
+                    }
                     state.controller = controller;
                     controller->get_CoreWebView2(&state.web);
                     if (!state.web) { emit guard->browserError(QStringLiteral("无法初始化登录页面。")); return S_OK; }
@@ -163,9 +237,21 @@ void WecomBrowser::initialize()
                         settings->put_IsStatusBarEnabled(FALSE);
                     }
                     EventRegistrationToken token{};
+                    state.web->add_ProcessFailed(Callback<ICoreWebView2ProcessFailedEventHandler>(
+                        [guard, generation](ICoreWebView2 *, ICoreWebView2ProcessFailedEventArgs *args) -> HRESULT {
+                            if (!guard || guard->d->generation != generation) return S_OK;
+                            COREWEBVIEW2_PROCESS_FAILED_KIND kind{};
+                            if (SUCCEEDED(args->get_ProcessFailedKind(&kind))
+                                && (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED
+                                    || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
+                                    || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE)) {
+                                guard->resetFailedBrowser(QStringLiteral("企业微信浏览器中断，请重新获取。"));
+                            }
+                            return S_OK;
+                        }).Get(), &token);
                     state.web->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
-                        [guard](ICoreWebView2 *, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
-                            if (!guard) return S_OK;
+                        [guard, generation](ICoreWebView2 *, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+                            if (!guard || guard->d->generation != generation) return S_OK;
                             BOOL success = FALSE; args->get_IsSuccess(&success);
                             COREWEBVIEW2_WEB_ERROR_STATUS status{}; args->get_WebErrorStatus(&status);
                             if (!success && status == COREWEBVIEW2_WEB_ERROR_STATUS_OPERATION_CANCELED) return S_OK;
@@ -174,9 +260,9 @@ void WecomBrowser::initialize()
                             return S_OK;
                         }).Get(), &token);
                     state.web->add_NewWindowRequested(Callback<ICoreWebView2NewWindowRequestedEventHandler>(
-                        [guard](ICoreWebView2 *, ICoreWebView2NewWindowRequestedEventArgs *args) -> HRESULT {
+                        [guard, generation](ICoreWebView2 *, ICoreWebView2NewWindowRequestedEventArgs *args) -> HRESULT {
                             args->put_Handled(TRUE);
-                            if (!guard) return S_OK;
+                            if (!guard || guard->d->generation != generation) return S_OK;
                             LPWSTR uri = nullptr; args->get_Uri(&uri);
                             QUrl url(QString::fromWCharArray(uri ? uri : L"")); CoTaskMemFree(uri);
                             // Official authentication links only. No shell/protocol execution.
@@ -190,8 +276,8 @@ void WecomBrowser::initialize()
                             args->put_State(COREWEBVIEW2_PERMISSION_STATE_DENY); return S_OK;
                         }).Get(), &token);
                     state.web->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-                        [guard](ICoreWebView2 *, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
-                            if (!guard) return S_OK;
+                        [guard, generation](ICoreWebView2 *, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+                            if (!guard || guard->d->generation != generation) return S_OK;
                             LPWSTR source = nullptr; args->get_Source(&source);
                             QUrl origin(QString::fromWCharArray(source ? source : L"")); CoTaskMemFree(source);
                             if (!isDocumentOrigin(origin)) return S_OK;
@@ -213,8 +299,8 @@ void WecomBrowser::initialize()
                     if (FAILED(state.web.As(&web2))) { emit guard->browserError(QStringLiteral("WebView2 Runtime 版本过低，请更新后重试。")); return S_OK; }
                     web2->get_CookieManager(&state.cookies);
                     web2->add_WebResourceResponseReceived(Callback<ICoreWebView2WebResourceResponseReceivedEventHandler>(
-                        [guard](ICoreWebView2 *, ICoreWebView2WebResourceResponseReceivedEventArgs *args) -> HRESULT {
-                            if (!guard) return S_OK;
+                        [guard, generation](ICoreWebView2 *, ICoreWebView2WebResourceResponseReceivedEventArgs *args) -> HRESULT {
+                            if (!guard || guard->d->generation != generation) return S_OK;
                             ComPtr<ICoreWebView2WebResourceRequest> request; args->get_Request(&request);
                             LPWSTR uri = nullptr; request->get_Uri(&uri);
                             QUrl url(QString::fromWCharArray(uri ? uri : L"")); CoTaskMemFree(uri);
@@ -223,8 +309,8 @@ void WecomBrowser::initialize()
                             int status = 0; response->get_StatusCode(&status);
                             if (status != 200) return S_OK;
                             response->GetContent(Callback<ICoreWebView2WebResourceResponseViewGetContentCompletedHandler>(
-                                [guard, url](HRESULT result, IStream *stream) -> HRESULT {
-                                    if (!guard || FAILED(result) || !stream) return S_OK;
+                                [guard, url, generation](HRESULT result, IStream *stream) -> HRESULT {
+                                    if (!guard || guard->d->generation != generation || FAILED(result) || !stream) return S_OK;
                                     QByteArray bytes; char buffer[16384]; ULONG count = 0;
                                     while (SUCCEEDED(stream->Read(buffer, sizeof(buffer), &count)) && count) {
                                         if (bytes.size() + int(count) > MaxResponseBytes) return S_OK;
@@ -240,10 +326,13 @@ void WecomBrowser::initialize()
                     guard->restoreSession();
                     return S_OK;
                 }).Get());
-            if (FAILED(controllerResult) && guard) { guard->d->initializing = false; emit guard->browserError(hrError(controllerResult)); }
+            if (FAILED(controllerResult) && guard) {
+                guard->d->initializing = false;
+                guard->reportBrowserError(QStringLiteral("创建企业微信登录窗口"), controllerResult);
+            }
             return S_OK;
         }).Get());
-    if (FAILED(hr)) { d->initializing = false; emit browserError(hrError(hr)); }
+    if (FAILED(hr)) { d->initializing = false; reportBrowserError(QStringLiteral("创建企业微信浏览器环境"), hr); }
 }
 
 bool WecomBrowser::hasSavedSession() const
@@ -254,17 +343,20 @@ void WecomBrowser::restoreSession()
     QJsonArray saved; QString error;
     const bool loaded = WecomSessionStore::load(QDir(d->profileDirectory).filePath("session.dat"), &saved, &error);
     QPointer<WecomBrowser> guard(this);
+    const auto generation = d->generation;
     auto done = std::make_shared<bool>(false);
-    auto finish = [guard, done](const QString &message) {
-        if (!guard || *done) return;
+    auto finish = [guard, done, generation](const QString &message) {
+        if (!guard || *done || guard->d->generation != generation) return;
         *done = true; guard->d->sessionReady = true;
         if (!message.isEmpty()) emit guard->sessionStatus(message);
-        if (guard && !guard->d->pendingUrl.isEmpty()) guard->navigate(guard->d->pendingUrl);
+        if (guard) QTimer::singleShot(0, guard, [guard, generation]() {
+            if (guard && guard->d->generation == generation) guard->navigatePending();
+        });
     };
     if (!loaded || saved.isEmpty() || !d->cookies) { finish(error); return; }
     QTimer::singleShot(10000, this, [finish]() { finish(QStringLiteral("恢复本地登录超时，将使用官方页面验证登录。")); });
-    readCookies(d->cookies.Get(), [guard, done, finish, saved](bool ok, const QJsonArray &existing) {
-        if (!guard || *done) return;
+    readCookies(d->cookies.Get(), [guard, done, finish, saved, generation](bool ok, const QJsonArray &existing) {
+        if (!guard || *done || guard->d->generation != generation) return;
         if (!ok) { finish(QStringLiteral("无法恢复本地登录，请在官方页面验证登录。")); return; }
         QSet<QString> keys;
         for (const auto &value : existing) keys.insert(cookieKey(value.toObject()));
@@ -292,15 +384,16 @@ void WecomBrowser::saveSession(SessionReply reply)
 {
     if (!d->cookies) { reply(QStringLiteral("无法保存本地登录记录，下次打开可能需要重新扫码。")); return; }
     QPointer<WecomBrowser> guard(this); auto done = std::make_shared<bool>(false);
-    auto finish = [guard, done, reply](const QString &error) {
-        if (!guard || *done) return;
+    const auto generation = d->generation;
+    auto finish = [guard, done, reply, generation](const QString &error) {
+        if (!guard || *done || guard->d->generation != generation) return;
         *done = true;
         emit guard->sessionStatus(error.isEmpty() ? QStringLiteral("登录已加密保存，重开后可复用；有效期以企业微信验证结果为准。") : error);
         if (guard) reply(error);
     };
     QTimer::singleShot(10000, this, [finish]() { finish(QStringLiteral("保存登录超时，下次打开可能需要重新扫码。")); });
-    readCookies(d->cookies.Get(), [guard, done, finish](bool ok, const QJsonArray &cookies) {
-        if (!guard || *done) return;
+    readCookies(d->cookies.Get(), [guard, done, finish, generation](bool ok, const QJsonArray &cookies) {
+        if (!guard || *done || guard->d->generation != generation) return;
         QString error;
         if (!ok) error = QStringLiteral("无法保存本地登录记录，下次打开可能需要重新扫码。");
         else {
@@ -313,6 +406,9 @@ void WecomBrowser::saveSession(SessionReply reply)
 
 void WecomBrowser::get(const QUrl &url, Reply reply)
 {
+    if (d->resetting) {
+        reply({}, QStringLiteral("企业微信浏览器正在重新连接，请稍后重试。")); return;
+    }
     if (!d->web || !isDocumentOrigin(url) || (url.path() != "/dop-api/opendoc" && url.path() != "/dop-api/get/sheet")) {
         reply({}, QStringLiteral("请先扫码登录企业微信文档。")); return;
     }
@@ -342,7 +438,12 @@ void WecomBrowser::get(const QUrl &url, Reply reply)
     })(%1);)JS").arg(QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact)));
     QPointer<WecomBrowser> guard(this);
     const HRESULT hr = d->web->ExecuteScript(script.toStdWString().c_str(), nullptr);
-    if (FAILED(hr)) { d->replies.remove(id); reply({}, QStringLiteral("无法执行文档读取，请重新扫码。")); return; }
+    if (FAILED(hr)) {
+        d->replies.remove(id);
+        if (isBrowserUnavailable(hr)) reportBrowserError(QStringLiteral("读取企业微信文档"), hr);
+        else reply({}, hrError(QStringLiteral("读取企业微信文档"), hr));
+        return;
+    }
     QTimer::singleShot(35000, this, [guard, id]() {
         if (!guard) return;
         auto it = guard->d->replies.find(id);
@@ -353,10 +454,15 @@ void WecomBrowser::get(const QUrl &url, Reply reply)
 }
 
 void WecomBrowser::cancelRequests() { d->replies.clear(); }
-void WecomBrowser::stop() { cancelRequests(); d->pendingUrl.clear(); if (d->web) d->web->Stop(); }
+void WecomBrowser::stop()
+{
+    cancelRequests();
+    d->pendingUrl.clear();
+    if (d->web && !d->resetting) d->web->Stop();
+}
 void WecomBrowser::syncBounds()
 {
-    if (!d->controller) return;
+    if (!d->controller || d->resetting) return;
     RECT bounds{}; GetClientRect(reinterpret_cast<HWND>(winId()), &bounds);
     d->controller->put_Bounds(bounds);
     d->controller->put_IsVisible(isVisible() ? TRUE : FALSE);

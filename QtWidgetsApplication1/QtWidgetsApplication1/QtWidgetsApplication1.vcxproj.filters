@@ -9,7 +9,13 @@
     <QtMoc Include="Common\WecomLocalServer.h" />
     <ClCompile Include="Common\WecomLocalServer.cpp" />
     <ClInclude Include="Common\WecomDocumentData.h" />
+    <ClInclude Include="Common\WecomDocumentCatalog.h" />
+    <ClCompile Include="Common\WecomDocumentCatalog.cpp" />
+    <None Include="WecomDocuments.json" />
     <ClInclude Include="Common\WecomSessionStore.h" />
+    <ClInclude Include="Common\WindowsDataProtection.h" />
+    <ClInclude Include="Common\LemonWorkToolPaths.h" />
+    <ClInclude Include="Common\comboboxpopup.h" />
     <ClCompile Include="Common\WecomSessionStore.cpp" />
     <ClCompile Include="wecomdocumentwidget.cpp" />
     <ClCompile Include="Common\WecomBrowser.cpp" />

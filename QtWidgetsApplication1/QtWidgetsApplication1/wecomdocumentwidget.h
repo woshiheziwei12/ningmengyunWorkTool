@@ -1,9 +1,10 @@
 #pragma once
 #include <QWidget>
+#include "Common/WecomDocumentCatalog.h"
 #include "Common/WecomDocumentData.h"
 #include "Common/WecomLocalServer.h"
+class QComboBox;
 class QDialog;
-class QLineEdit;
 class QLabel;
 class QPushButton;
 class QTabWidget;
@@ -14,20 +15,32 @@ class WecomDocumentWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit WecomDocumentWidget(QWidget *parent = nullptr);
+    explicit WecomDocumentWidget(QWidget *parent = nullptr, const QString &catalogPath = {});
     ~WecomDocumentWidget() override;
     void readForAssistant(const QDate &fromDate, WecomLocalServer::Reply reply);
     void setAssistantStatus(const QString &message);
 signals:
     void backToMain();
 private:
+    // Rebuilds the saved choices and selects a newly saved link when supplied.
+    void populateDocuments(const QUrl &selected = {});
+    // Prompts for a temporary visit or saves a named binding.
+    void openDocumentDialog(bool saveToCatalog);
+    // Adds an in-memory choice and starts loading it using the regular reader.
+    void accessTemporaryDocument(const QUrl &url);
+    QUrl selectedDocumentUrl() const;
     void clearResults();
     void showSnapshot(const WecomDocument::Snapshot &snapshot);
     void exportJson();
     void finishAssistant(const QJsonObject &response);
     WecomLocalServer::Reply m_assistantReply;
+    WecomDocumentCatalog m_catalog;
+    int m_temporaryIndex = -1;
+    bool m_showReadInPage = true;
     QLabel *m_assistantStatus;
-    QLineEdit *m_url;
+    QComboBox *m_documents;
+    QPushButton *m_manualAccess;
+    QPushButton *m_addDocument;
     QLabel *m_status;
     QPushButton *m_login;
     QPushButton *m_read;

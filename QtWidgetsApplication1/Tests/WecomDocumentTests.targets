@@ -8,6 +8,7 @@
       <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomDocumentData.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomDocumentCatalog.cpp" />
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomDocumentReader.cpp" />
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomBrowser.cpp" />
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomSessionStore.cpp" />

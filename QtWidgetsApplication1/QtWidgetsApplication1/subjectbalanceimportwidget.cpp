@@ -1,5 +1,6 @@
 ﻿#include "subjectbalanceimportwidget.h"
 #include "Common/globaldata.h"
+#include "Common/comboboxpopup.h"
 #include "Common/importerhostselector.h"
 #include "Common/subjectbalancefiles.h"
 
@@ -12,28 +13,6 @@
 #include <algorithm>
 
 namespace {
-class SpacedComboDelegate : public QStyledItemDelegate
-{
-public:
-    explicit SpacedComboDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
-        QSize size = QStyledItemDelegate::sizeHint(option, index);
-        size.setHeight(qMax(size.height(), qMax(36, option.fontMetrics.height() + 16)));
-        return size;
-    }
-};
-
-void spaceComboItems(QAbstractItemView *view)
-{
-    view->setItemDelegate(new SpacedComboDelegate(view));
-    view->setTextElideMode(Qt::ElideRight);
-    if (auto *list = qobject_cast<QListView*>(view)) {
-        list->setSpacing(2);
-        list->setUniformItemSizes(true);
-    }
-}
-
 void appendPlain(QTextEdit *edit, const QString &text)
 {
     QTextCursor cursor = edit->textCursor();

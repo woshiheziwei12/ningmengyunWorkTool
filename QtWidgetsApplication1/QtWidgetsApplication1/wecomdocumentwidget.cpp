@@ -1,11 +1,15 @@
 #include "wecomdocumentwidget.h"
 #include "Common/WecomBrowser.h"
 #include "Common/WecomDocumentReader.h"
+#include "Common/comboboxpopup.h"
 #include <QAbstractTableModel>
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QFormLayout>
 #include <QHeaderView>
 #include <QJsonDocument>
 #include <QLabel>
@@ -14,6 +18,7 @@
 #include <QPushButton>
 #include <QSaveFile>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QTableView>
 #include <QTabWidget>
@@ -54,18 +59,31 @@ private:
 };
 }
 
-WecomDocumentWidget::WecomDocumentWidget(QWidget *parent) : QWidget(parent)
+WecomDocumentWidget::WecomDocumentWidget(QWidget *parent, const QString &catalogPath)
+    : QWidget(parent), m_catalog(catalogPath)
 {
     setObjectName("wecomDocumentPage");
     auto *layout = new QVBoxLayout(this);
     auto *back = new QPushButton(QStringLiteral("返回分类"), this);
     back->setObjectName("btnWecomBack"); connect(back, &QPushButton::clicked, this, &WecomDocumentWidget::backToMain);
     layout->addWidget(back, 0, Qt::AlignLeft);
-    auto *intro = new QLabel(QStringLiteral("读取“2026-运营支持组项目进度表”中今天及之后的日期工作表。扫码登录后点击获取，结果可导出为 JSON。"), this);
-    intro->setWordWrap(true); layout->addWidget(intro);
-    m_url = new QLineEdit(WecomDocument::defaultUrl().toString(), this);
-    m_url->setObjectName("wecomDocumentUrl"); m_url->setPlaceholderText(QStringLiteral("粘贴这份文档的完整分享链接"));
-    layout->addWidget(m_url);
+    auto *documentControls = new QHBoxLayout;
+    m_documents = new QComboBox(this);
+    m_documents->setObjectName("wecomDocumentSelector");
+    m_documents->setAccessibleName(QStringLiteral("企业微信表格"));
+    m_documents->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_documents->setMaxVisibleItems(8);
+    spaceComboItems(m_documents->view());
+    m_manualAccess = new QPushButton(QStringLiteral("手动访问"), this);
+    m_manualAccess->setObjectName("btnWecomManualAccess");
+    m_addDocument = new QPushButton(QStringLiteral("添加到列表"), this);
+    m_addDocument->setObjectName("btnWecomAddDocument");
+    documentControls->addWidget(m_documents, 1);
+    documentControls->addWidget(m_manualAccess);
+    documentControls->addWidget(m_addDocument);
+    layout->addLayout(documentControls);
+    const QString catalogError = m_catalog.load();
+    populateDocuments();
     auto *buttons = new QHBoxLayout;
     m_login = new QPushButton(QStringLiteral("扫码登录"), this); m_login->setObjectName("btnWecomLogin");
     m_read = new QPushButton(QStringLiteral("获取最新数据"), this); m_read->setObjectName("btnWecomRead");
@@ -73,7 +91,7 @@ WecomDocumentWidget::WecomDocumentWidget(QWidget *parent) : QWidget(parent)
     m_export = new QPushButton(QStringLiteral("导出 JSON"), this); m_export->setObjectName("btnWecomExport"); m_export->setEnabled(false);
     for (auto *button : {m_login, m_read, m_cancel, m_export}) buttons->addWidget(button);
     buttons->addStretch(); layout->addLayout(buttons);
-    m_status = new QLabel(QStringLiteral("尚未获取数据。筛选日期按电脑本地日期计算。"), this);
+    m_status = new QLabel(catalogError.isEmpty() ? QStringLiteral("尚未获取数据。筛选日期按电脑本地日期计算。") : catalogError, this);
     m_status->setObjectName("wecomReadStatus"); m_status->setWordWrap(true); m_status->setTextFormat(Qt::PlainText); layout->addWidget(m_status);
     m_tabs = new QTabWidget(this); m_tabs->setObjectName("wecomSheetTabs"); m_tabs->setMinimumHeight(360); layout->addWidget(m_tabs, 1);
 
@@ -101,22 +119,43 @@ WecomDocumentWidget::WecomDocumentWidget(QWidget *parent) : QWidget(parent)
     connect(m_loginDialog, &QDialog::rejected, m_reader, &WecomDocumentReader::cancel);
     connect(m_reader, &WecomDocumentReader::busyChanged, this, [this](bool busy) {
         setProperty("sessionBusyWecomRead", busy); m_login->setEnabled(!busy); m_read->setEnabled(!busy);
-        m_url->setEnabled(!busy); m_cancel->setEnabled(busy); m_export->setEnabled(!busy && m_snapshot.fetchedAt.isValid());
+        m_documents->setEnabled(!busy);
+        m_manualAccess->setEnabled(!busy);
+        m_addDocument->setEnabled(!busy);
+        m_cancel->setEnabled(busy);
+        m_export->setEnabled(!busy && m_snapshot.fetchedAt.isValid());
     });
-    connect(m_reader, &WecomDocumentReader::progress, m_status, &QLabel::setText);
+    connect(m_reader, &WecomDocumentReader::progress, this, [this](const QString &message) {
+        (m_showReadInPage ? m_status : m_assistantStatus)->setText(message);
+    });
     connect(m_reader, &WecomDocumentReader::failed, this, [this](const QString &message) {
-        m_loginDialog->hide(); m_status->setText(message);
+        m_loginDialog->hide();
+        (m_showReadInPage ? m_status : m_assistantStatus)->setText(message);
         finishAssistant(WecomLocalServer::error("read_failed", message));
     });
-    connect(m_reader, &WecomDocumentReader::finished, this, &WecomDocumentWidget::showSnapshot);
     connect(m_reader, &WecomDocumentReader::finished, this, [this](const WecomDocument::Snapshot &snapshot) {
-        finishAssistant(WecomLocalServer::success(snapshot.toJson()));
+        if (m_showReadInPage) showSnapshot(snapshot);
+        else m_assistantStatus->setText(QStringLiteral("本机助手读取已结束。"));
+        if (m_assistantReply) finishAssistant(WecomLocalServer::success(snapshot.toJson()));
     });
-    connect(m_login, &QPushButton::clicked, this, [this]() { clearResults(); m_reader->signIn(QUrl(m_url->text().trimmed())); });
-    connect(m_read, &QPushButton::clicked, this, [this]() { clearResults(); m_reader->read(QUrl(m_url->text().trimmed())); });
+    connect(m_login, &QPushButton::clicked, this, [this]() {
+        m_showReadInPage = true;
+        clearResults();
+        m_reader->signIn(selectedDocumentUrl());
+    });
+    connect(m_read, &QPushButton::clicked, this, [this]() {
+        m_showReadInPage = true;
+        clearResults();
+        m_reader->read(selectedDocumentUrl());
+    });
     connect(m_cancel, &QPushButton::clicked, m_reader, &WecomDocumentReader::cancel);
     connect(m_export, &QPushButton::clicked, this, &WecomDocumentWidget::exportJson);
-    connect(m_url, &QLineEdit::textChanged, this, &WecomDocumentWidget::clearResults);
+    connect(m_manualAccess, &QPushButton::clicked, this, [this]() { openDocumentDialog(false); });
+    connect(m_addDocument, &QPushButton::clicked, this, [this]() { openDocumentDialog(true); });
+    connect(m_documents, qOverload<int>(&QComboBox::currentIndexChanged), this, [this]() {
+        clearResults();
+        m_status->setText(QStringLiteral("已切换表格，请获取最新数据。"));
+    });
 }
 WecomDocumentWidget::~WecomDocumentWidget()
 {
@@ -134,9 +173,112 @@ void WecomDocumentWidget::readForAssistant(const QDate &fromDate, WecomLocalServ
     if (m_reader->isBusy() || m_assistantReply) {
         reply(WecomLocalServer::error("busy", QStringLiteral("工具正在登录或读取文档，请等待完成后重试。"))); return;
     }
-    m_assistantReply = std::move(reply); clearResults();
-    m_status->setText(QStringLiteral("助手已请求读取最新文档…"));
-    m_reader->read(QUrl(m_url->text().trimmed()), fromDate);
+    const QString defaultId = WecomDocument::documentId();
+    const QUrl savedUrl = m_catalog.urlForId(defaultId);
+    m_assistantReply = std::move(reply);
+    m_showReadInPage = WecomDocument::documentIdFromUrl(selectedDocumentUrl()) == defaultId;
+    if (m_showReadInPage) clearResults();
+    (m_showReadInPage ? m_status : m_assistantStatus)->setText(QStringLiteral("助手已请求读取项目进度表…"));
+    m_reader->read(savedUrl.isEmpty() ? WecomDocument::defaultUrl() : savedUrl, fromDate);
+}
+
+void WecomDocumentWidget::populateDocuments(const QUrl &selected)
+{
+    const QSignalBlocker blockSelection(m_documents);
+    m_documents->clear();
+    m_temporaryIndex = -1;
+    for (const auto &entry : m_catalog.entries()) m_documents->addItem(entry.name, entry.url);
+    const int index = m_documents->findData(selected);
+    if (index >= 0) m_documents->setCurrentIndex(index);
+}
+
+QUrl WecomDocumentWidget::selectedDocumentUrl() const
+{
+    return m_documents->currentData().toUrl();
+}
+
+void WecomDocumentWidget::openDocumentDialog(bool saveToCatalog)
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(saveToCatalog ? QStringLiteral("添加到列表") : QStringLiteral("手动访问"));
+    dialog.setMinimumWidth(480);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout;
+    auto *urlEditor = new QLineEdit(&dialog);
+    urlEditor->setObjectName("wecomDocumentLinkInput");
+    urlEditor->setPlaceholderText(QStringLiteral("粘贴企业微信表格链接"));
+    auto *nameEditor = new QLineEdit(&dialog);
+    nameEditor->setObjectName("wecomDocumentNameInput");
+    if (saveToCatalog) {
+        m_catalog.load();
+        nameEditor->setPlaceholderText(QStringLiteral("下拉框中显示的名称"));
+        form->addRow(QStringLiteral("表格名称"), nameEditor);
+        if (m_temporaryIndex >= 0 && m_documents->currentIndex() == m_temporaryIndex) {
+            urlEditor->setText(selectedDocumentUrl().toString(QUrl::FullyEncoded));
+            nameEditor->setText(m_snapshot.title);
+        }
+    } else {
+        nameEditor->hide();
+    }
+    form->addRow(QStringLiteral("表格链接"), urlEditor);
+    layout->addLayout(form);
+    auto *message = new QLabel(&dialog);
+    message->setWordWrap(true);
+    message->setTextFormat(Qt::PlainText);
+    message->hide();
+    layout->addWidget(message);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText(saveToCatalog ? QStringLiteral("保存") : QStringLiteral("访问"));
+    buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("取消"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QUrl url;
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        url = QUrl(urlEditor->text().trimmed(), QUrl::StrictMode);
+        QString error;
+        if (WecomDocument::validateUrl(url, &error) && saveToCatalog) {
+            const QString name = nameEditor->text().trimmed();
+            if (name.isEmpty()) {
+                error = QStringLiteral("请填写表格名称。");
+            } else {
+                const bool replace = !m_catalog.urlForId(WecomDocument::documentIdFromUrl(url)).isEmpty();
+                if (replace && QMessageBox::question(&dialog, QStringLiteral("更新表格绑定"),
+                    QStringLiteral("这张表格已在列表中。要更新它的名称和链接吗？"),
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+                m_catalog.save({name, url}, replace, &error);
+            }
+        }
+        if (error.isEmpty()) {
+            dialog.accept();
+        } else {
+            message->setText(error);
+            message->show();
+        }
+    });
+    if (dialog.exec() != QDialog::Accepted) return;
+    if (saveToCatalog) {
+        populateDocuments(url);
+        clearResults();
+        m_status->setText(QStringLiteral("已保存表格，可以获取最新数据。"));
+    } else {
+        accessTemporaryDocument(url);
+    }
+}
+
+void WecomDocumentWidget::accessTemporaryDocument(const QUrl &url)
+{
+    const QString label = QStringLiteral("临时访问");
+    if (m_temporaryIndex < 0) {
+        m_temporaryIndex = m_documents->count();
+        m_documents->addItem(label, url);
+    } else {
+        m_documents->setItemText(m_temporaryIndex, label);
+        m_documents->setItemData(m_temporaryIndex, url);
+    }
+    m_documents->setCurrentIndex(m_temporaryIndex);
+    m_showReadInPage = true;
+    clearResults();
+    m_reader->read(url);
 }
 void WecomDocumentWidget::clearResults()
 {
@@ -146,6 +288,9 @@ void WecomDocumentWidget::clearResults()
 void WecomDocumentWidget::showSnapshot(const WecomDocument::Snapshot &snapshot)
 {
     clearResults(); m_snapshot = snapshot; m_loginDialog->hide();
+    if (m_temporaryIndex >= 0 && m_documents->currentIndex() == m_temporaryIndex && !snapshot.title.isEmpty()) {
+        m_documents->setItemText(m_temporaryIndex, snapshot.title);
+    }
     int loaded = 0;
     for (const auto &sheet : snapshot.sheets) {
         auto *page = new QWidget(m_tabs); auto *layout = new QVBoxLayout(page);

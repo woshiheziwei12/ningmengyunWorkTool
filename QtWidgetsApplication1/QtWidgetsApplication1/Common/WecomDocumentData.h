@@ -32,6 +32,7 @@ struct Metadata {
     QVector<Sheet> sheets;
 };
 struct Snapshot {
+    QString documentId;
     QString title;
     QDate fromDate;
     QDateTime fetchedAt;
@@ -41,6 +42,8 @@ struct Snapshot {
 };
 QString documentId();
 QUrl defaultUrl();
+// Returns the ID of a supported WeCom sheet URL, or an empty string.
+QString documentIdFromUrl(const QUrl &url);
 bool validateUrl(const QUrl &url, QString *error);
 QDate sheetDate(const QString &name, int year);
 bool parseMetadata(const QJsonObject &response, Metadata *metadata, QString *error);

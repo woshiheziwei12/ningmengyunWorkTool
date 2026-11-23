@@ -14,9 +14,12 @@ WecomDocumentReader::WecomDocumentReader(WecomBrowser *browser, QObject *parent)
     qRegisterMetaType<WecomDocument::Snapshot>();
     m_loginTimeout.setSingleShot(true);
     connect(&m_loginTimeout, &QTimer::timeout, this, [this]() { fail(QStringLiteral("登录或文档加载超时，请重新扫码。")); });
-    connect(browser, &WecomBrowser::browserError, this, [this](const QString &message) { if (m_busy) fail(message); });
+    connect(browser, &WecomBrowser::browserError, this, [this](const QString &message) {
+        m_openRequest.clear();
+        if (m_busy) fail(message);
+    });
     connect(browser, &WecomBrowser::bootstrapReceived, this, [this](const QUrl &url, const QJsonObject &response) {
-        if (!m_busy || !m_waitingBootstrap || QUrlQuery(url).queryItemValue("id") != WecomDocument::documentId()) return;
+        if (!m_busy || !m_waitingBootstrap || QUrlQuery(url).queryItemValue("id") != m_snapshot.documentId) return;
         WecomDocument::Metadata metadata; QString error;
         // The official page may first issue an unauthenticated request. Keep the login window open.
         if (!WecomDocument::parseMetadata(response, &metadata, &error)) return;
@@ -48,7 +51,10 @@ void WecomDocumentReader::begin(const QUrl &url, bool readAfterLogin, const QDat
     }
     const bool canRefresh = readAfterLogin && !m_openRequest.isEmpty() && url == m_documentUrl;
     ++m_generation; m_readAfterLogin = readAfterLogin; m_documentUrl = url;
-    m_snapshot = {}; m_snapshot.fromDate = date; m_sheetIndex = 0;
+    m_snapshot = {};
+    m_snapshot.documentId = WecomDocument::documentIdFromUrl(url);
+    m_snapshot.fromDate = date;
+    m_sheetIndex = 0;
     m_asyncPolling = false;
     setBusy(true);
     if (canRefresh) {
