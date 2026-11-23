@@ -767,6 +767,30 @@ private slots:
         QCOMPARE(startup.findChildren<PwdLoginWidget*>().size(), 1);
         auto *password = startup.findChild<PwdLoginWidget*>();
         QCOMPARE(startup.findChild<QLineEdit*>("editUserName")->text(), QString("13000000001"));
+        QCOMPARE(startup.findChild<QLineEdit*>("editPwd")->text(), QString("sample-password"));
+        QFile migrated(credentials.filePath("LemonApp.Pro.dpapi"));
+        QVERIFY(migrated.open(QIODevice::ReadOnly));
+        const auto encrypted = migrated.readAll();
+        QVERIFY(!encrypted.isEmpty() && !encrypted.contains("sample-password"));
+        migrated.close();
+
+        QTemporaryDir package;
+        QVERIFY(package.isValid());
+        QFile portableLegacy(package.filePath("LemonApp.Pro.dat"));
+        QVERIFY(portableLegacy.open(QIODevice::WriteOnly));
+        QVERIFY(portableLegacy.write(R"({"re":1,"u":"13000000003","p":"program-password"})") > 0);
+        portableLegacy.close();
+        GlobalData portableGlobal;
+        PwdLoginWidget preferred(&portableGlobal, nullptr, package.path(), credentials.path());
+        QCOMPARE(preferred.findChild<QLineEdit*>("editPwd")->text(), QString("program-password"));
+        const QString portablePath = package.filePath("LemonApp.Pro.dpapi");
+        QVERIFY(QFileInfo::exists(portablePath));
+        QVERIFY(portableLegacy.remove());
+        preferred.setEnvironment("Pro");
+        QCOMPARE(preferred.findChild<QLineEdit*>("editPwd")->text(), QString("program-password"));
+        QVERIFY(QFile::remove(portablePath));
+        preferred.setEnvironment("Pro");
+        QCOMPARE(preferred.findChild<QLineEdit*>("editPwd")->text(), QString("sample-password"));
         global.m_strNingMengCookie = "old-cookie"; global.m_nServiceId = 123; global.m_bLogin = true;
         global.m_userToken.SetAccessToken("old-jwt");
         environment->setCurrentIndex(1);
@@ -776,6 +800,7 @@ private slots:
         QVERIFY(global.m_strNingMengCookie.isEmpty()); QVERIFY(global.m_userToken.m_strAccessToken.isEmpty());
         QVERIFY(!global.m_bLogin); QCOMPARE(global.m_nServiceId, 0);
         QCOMPARE(startup.findChild<QLineEdit*>("editUserName")->text(), QString("13000000002"));
+        QVERIFY(QFileInfo::exists(credentials.filePath("LemonApp.Dev2.dpapi")));
         QVERIFY(QMetaObject::invokeMethod(password, "loginBusyChanged", Qt::DirectConnection, Q_ARG(bool, true)));
         QVERIFY(!environment->isEnabled());
         QVERIFY(QMetaObject::invokeMethod(password, "loginBusyChanged", Qt::DirectConnection, Q_ARG(bool, false)));
@@ -940,8 +965,13 @@ private slots:
         QVERIFY(server.requests[1].contains("password=test%2B%26password"));
         QCOMPARE(global.m_nServiceId, 45); QCOMPARE(global.m_nUserId, 123);
         QCOMPARE(global.m_strNingMengCookie, QString("test-cookie"));
-        QFile saved(credentials.filePath("LemonApp.Dev2.dat")); QVERIFY(saved.open(QIODevice::ReadOnly));
-        QVERIFY(QJsonDocument::fromJson(saved.readAll()).object().value("p").toString().isEmpty());
+        QVERIFY(QFileInfo::exists(credentials.filePath("LemonApp.Dev2.dpapi")));
+        {
+            GlobalData reopened;
+            StartUpWindow noPassword(&reopened, nullptr, credentials.path());
+            QCOMPARE(noPassword.findChild<QLineEdit*>("editUserName")->text(), QString("13000000002"));
+            QVERIFY(noPassword.findChild<QLineEdit*>("editPwd")->text().isEmpty());
+        }
         // Renewal uses the same complete login chain, with an atomic session replacement.
         const auto next = password->nextRefreshAt();
         QVERIFY(qAbs(QDateTime::currentDateTimeUtc().secsTo(next) - 11 * 3600) < 10);
@@ -985,13 +1015,13 @@ private slots:
         QVERIFY(qAbs(QDateTime::currentDateTimeUtc().secsTo(password->nextRefreshAt()) - 3600) < 10);
         QCOMPARE(success.count(), 1);
         // Environment switch uses only the destination's persisted credentials.
-        {
-            QFile savedTarget(credentials.filePath("LemonApp.Dev2.dat"));
-            QVERIFY(savedTarget.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            savedTarget.write(R"({"re":1,"u":"13000000002","p":"saved+test&password"})");
-        }
+        startup.findChild<QCheckBox*>("checkBtnAutoPwd")->setChecked(true);
+        secret->setText("saved+test&password");
+        startup.findChild<QPushButton*>("btnPwdLogin")->click();
+        QTRY_COMPARE(success.count(), 2);
         GlobalData switched;
         StartUpWindow target(&switched, nullptr, credentials.path());
+        QCOMPARE(target.findChild<QLineEdit*>("editPwd")->text(), QString("saved+test&password"));
         target.prepareEnvironmentSwitch();
         QVERIFY(!target.findChild<QComboBox*>("loginEnvironment")->isEnabled());
         QSignalSpy switchedSuccess(target.sessionLogin(), &PwdLoginWidget::login_success);
@@ -1000,6 +1030,31 @@ private slots:
         QVERIFY(!target.findChild<QComboBox*>("loginEnvironment")->isEnabled());
         const auto requestCount = server.requests.size();
         QVERIFY(server.requests[requestCount - 4].contains("password=saved%2Btest%26password"));
+        QFile legacy(credentials.filePath("LemonApp.Dev2.dat"));
+        QVERIFY(legacy.open(QIODevice::WriteOnly));
+        legacy.write(R"({"re":1,"u":"13000000002","p":"obsolete-password"})");
+        legacy.close();
+        target.findChild<QCheckBox*>("checkBtnAutoPwd")->setChecked(false);
+        target.findChild<QPushButton*>("btnPwdLogin")->click();
+        QTRY_COMPARE(switchedSuccess.count(), 2);
+        GlobalData reopened;
+        StartUpWindow forgotten(&reopened, nullptr, credentials.path());
+        QCOMPARE(forgotten.findChild<QLineEdit*>("editUserName")->text(), QString("13000000002"));
+        QVERIFY(forgotten.findChild<QLineEdit*>("editPwd")->text().isEmpty());
+        QTemporaryDir portableDirectory;
+        QVERIFY(portableDirectory.isValid());
+        GlobalData portableGlobal;
+        PwdLoginWidget portable(&portableGlobal, nullptr, portableDirectory.path(), credentials.path());
+        portable.findChild<QCheckBox*>("checkBtnAutoPwd")->setChecked(true);
+        portable.findChild<QLineEdit*>("editPwd")->setText("copied-build-password");
+        QSignalSpy portableSuccess(&portable, &PwdLoginWidget::login_success);
+        portable.findChild<QPushButton*>("btnPwdLogin")->click();
+        QTRY_COMPARE(portableSuccess.count(), 1);
+        const QString portablePath = portableDirectory.filePath("LemonApp.Dev2.dpapi");
+        QVERIFY(QFileInfo::exists(portablePath));
+        QVERIFY(QFile::remove(portablePath));
+        portable.setEnvironment("Dev2");
+        QCOMPARE(portable.findChild<QLineEdit*>("editPwd")->text(), QString("copied-build-password"));
         lemoncofighelper::SetHttpEnvironment("Local");
     }
 };

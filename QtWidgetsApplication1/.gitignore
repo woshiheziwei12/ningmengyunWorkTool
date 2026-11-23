@@ -92,6 +92,8 @@ logs/
 CliBackups/
 LemonApp.dat
 LemonApp.*.dat
+LemonApp.*.dpapi
+LemonApp.*.dpapi.lock
 SqlServer211.local.json
 session.dat
 subject_balance_import_history.json

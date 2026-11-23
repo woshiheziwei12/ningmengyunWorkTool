@@ -34,6 +34,10 @@ private:
     struct Impl;
     std::unique_ptr<Impl> d;
     void initialize();
+    void navigatePending();
+    void reportBrowserError(const QString &stage, long result);
+    // Releases the failed controller outside the WebView2 event callback.
+    void resetFailedBrowser(const QString &message);
     void syncBounds();
     void restoreSession();
 };

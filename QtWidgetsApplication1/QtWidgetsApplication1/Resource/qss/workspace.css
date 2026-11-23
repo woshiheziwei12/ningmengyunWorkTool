@@ -181,3 +181,12 @@ QAbstractItemView#balanceSoftwareSuggestions { padding: 4px; }
 QWidget#subjectBalanceImportPage QComboBox QAbstractItemView::item,
 QAbstractItemView#balanceSoftwareSuggestions::item { min-height: 28px; padding: 6px 12px; }
 QComboBox#balanceSoftware QLineEdit { border: none; background: transparent; padding: 0; min-height: 0; }
+
+QComboBox#wecomDocumentSelector { combobox-popup: 0; }
+QComboBox#wecomDocumentSelector QAbstractItemView {
+    background: #172238; border: 1px solid #354663; border-radius: 8px;
+    padding: 5px; outline: 0; selection-background-color: #1e3554;
+}
+QComboBox#wecomDocumentSelector QAbstractItemView::item { padding: 5px 10px; border-radius: 5px; }
+QComboBox#wecomDocumentSelector QAbstractItemView::item:hover { background: #1b2940; }
+QComboBox#wecomDocumentSelector QAbstractItemView::item:selected { background: #1e3554; color: #f3fbff; }

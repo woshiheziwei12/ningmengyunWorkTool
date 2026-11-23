@@ -477,6 +477,68 @@ QDialog#StartUpWindow QComboBox {
     border: none;
 }
 
+QDialog#StartUpWindow QComboBox#loginEnvironment {
+    min-height: 36px;
+    padding: 0 38px 0 12px;
+    color: #23533d;
+    background: #f1faf5;
+    border: 1px solid #bdd7c8;
+    border-radius: 9px;
+    font-weight: 600;
+    combobox-popup: 0;
+}
+
+QDialog#StartUpWindow QComboBox#loginEnvironment:hover,
+QDialog#StartUpWindow QComboBox#loginEnvironment:focus,
+QDialog#StartUpWindow QComboBox#loginEnvironment:on {
+    background: #e9f7ef;
+    border-color: #6aa88a;
+}
+
+QDialog#StartUpWindow QComboBox#loginEnvironment:disabled {
+    color: #78887f;
+    background: #f0f4f2;
+    border-color: #dbe5df;
+}
+
+QDialog#StartUpWindow QComboBox#loginEnvironment::drop-down {
+    subcontrol-origin: border;
+    subcontrol-position: center right;
+    width: 27px;
+    height: 26px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 6px;
+    background: #28674d;
+}
+
+QDialog#StartUpWindow QComboBox#loginEnvironment::drop-down:disabled { background: #7b9387; }
+
+QDialog#StartUpWindow QComboBox#loginEnvironment::down-arrow {
+    image: url(:/Resource/Images/workspace-chevron.svg);
+    width: 12px;
+    height: 12px;
+}
+
+QAbstractItemView#loginEnvironmentOptions {
+    padding: 4px;
+    color: #23533d;
+    background: #ffffff;
+    border: 1px solid #bdd7c8;
+    border-radius: 8px;
+    outline: 0;
+    selection-background-color: #dff3e7;
+    selection-color: #184f34;
+}
+
+QAbstractItemView#loginEnvironmentOptions::item {
+    padding: 5px 9px;
+    border-radius: 5px;
+}
+
+QAbstractItemView#loginEnvironmentOptions::item:hover { background: #eff8f2; }
+QAbstractItemView#loginEnvironmentOptions::item:selected { background: #dff3e7; color: #184f34; }
+
 QDialog#StartUpWindow QPushButton {
     min-height: 0;
     padding: 0;

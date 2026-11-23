@@ -5,26 +5,13 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <cmath>
-#include <Windows.h>
-#include <wincrypt.h>
-#pragma comment(lib, "Crypt32.lib")
+#include "WindowsDataProtection.h"
 
 namespace {
 constexpr int MaxBytes = 1024 * 1024;
 bool fail(QString *error) {
     if (error) *error = QStringLiteral("本地登录记录无法保存或恢复；可继续使用官方扫码登录。");
     return false;
-}
-bool crypt(const QByteArray &input, QByteArray *output, bool encrypt) {
-    DATA_BLOB source{DWORD(input.size()), reinterpret_cast<BYTE *>(const_cast<char *>(input.constData()))};
-    DATA_BLOB result{};
-    const BOOL ok = encrypt
-        ? CryptProtectData(&source, L"LemonWorkTool Wecom session v1", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &result)
-        : CryptUnprotectData(&source, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &result);
-    if (!ok) return false;
-    *output = QByteArray(reinterpret_cast<const char *>(result.pbData), int(result.cbData));
-    SecureZeroMemory(result.pbData, result.cbData); LocalFree(result.pbData);
-    return true;
 }
 }
 
@@ -57,7 +44,8 @@ bool WecomSessionStore::save(const QString &path, const QJsonArray &cookies, QSt
     if (error) error->clear();
     auto plain = QJsonDocument(QJsonObject{{"version", 1}, {"cookies", usableCookies(cookies, QDateTime::currentMSecsSinceEpoch() / 1000.0)}}).toJson(QJsonDocument::Compact);
     QByteArray encrypted;
-    const bool ok = plain.size() <= MaxBytes && crypt(plain, &encrypted, true);
+    const bool ok = plain.size() <= MaxBytes
+        && WindowsDataProtection::transform(plain, &encrypted, true, L"LemonWorkTool Wecom session v1");
     plain.fill('\0');
     if (!ok) return fail(error);
     QSaveFile file(path);
@@ -72,7 +60,7 @@ bool WecomSessionStore::load(const QString &path, QJsonArray *cookies, QString *
     if (!file.exists()) return true;
     if (!file.open(QIODevice::ReadOnly) || file.size() <= 0 || file.size() > MaxBytes + 4096) return fail(error);
     QByteArray plain;
-    if (!crypt(file.readAll(), &plain, false)) return fail(error);
+    if (!WindowsDataProtection::transform(file.readAll(), &plain, false)) return fail(error);
     const auto document = QJsonDocument::fromJson(plain); plain.fill('\0');
     const auto object = document.object();
     if (object.value("version").toInt() != 1 || !object.value("cookies").isArray()) return fail(error);

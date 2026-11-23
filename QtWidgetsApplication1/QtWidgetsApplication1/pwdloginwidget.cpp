@@ -3,7 +3,9 @@
 #include "httprequesthelper.h"
 #include "lemoncofighelper.h"
 #include "Common/globaldata.h"
+#include "Common/LemonWorkToolPaths.h"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QUrlQuery>
@@ -17,14 +19,35 @@
 #include <QNetworkCookie>
 #include <QTimer>
 #include <QDir>
+#include <QFileInfo>
+#include <QLockFile>
 #include <QSaveFile>
+#include "Common/WindowsDataProtection.h"
 
-PwdLoginWidget::PwdLoginWidget(GlobalData *globalData, QWidget *parent, const QString &credentialsDirectory) :
+namespace {
+// Migrating a legacy record only seeds a location that has no encrypted record.
+bool writeEncryptedCredentials(const QString &path, const QByteArray &data, bool onlyIfMissing)
+{
+    if (path.isEmpty() || !QDir().mkpath(QFileInfo(path).absolutePath())) return false;
+    QLockFile lock(path + ".lock");
+    if (!lock.tryLock()) return false;
+    if (onlyIfMissing && QFileInfo::exists(path)) return true;
+    QSaveFile file(path);
+    return file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit();
+}
+}
+
+PwdLoginWidget::PwdLoginWidget(GlobalData *globalData, QWidget *parent, const QString &credentialsDirectory,
+                              const QString &userCredentialsDirectory) :
     QWidget(parent),
     ui(new Ui::PwdLoginWidget),
     m_pGlobalData(globalData),
-    m_credentialsDirectory(credentialsDirectory.isEmpty() ? qApp->applicationDirPath() : credentialsDirectory)
+    m_credentialsDirectory(credentialsDirectory.isEmpty() ? QCoreApplication::applicationDirPath() : credentialsDirectory),
+    m_userCredentialsDirectory(userCredentialsDirectory)
 {
+    if (m_userCredentialsDirectory.isEmpty()) {
+        m_userCredentialsDirectory = credentialsDirectory.isEmpty() ? LemonWorkToolPaths::userDataDirectory() : credentialsDirectory;
+    }
     ui->setupUi(this);
     ui->labelPwdError->setVisible(false);
     ui->labelRight->setVisible(false);
@@ -422,21 +445,42 @@ void PwdLoginWidget::onFetchPlanFinished(QNetworkReply *reply)
     failLogin(QStringLiteral("未获取到账套服务编号，请确认账号是否有柠檬云财务账套"));
 }
 
-QString PwdLoginWidget::credentialsPath() const
+QString PwdLoginWidget::credentialsPath(const QString &directory) const
 {
-    return QDir(m_credentialsDirectory).filePath("LemonApp." + m_environment + ".dat");
+    return directory.isEmpty() ? QString() : QDir(directory).filePath("LemonApp." + m_environment + ".dpapi");
 }
 
-void PwdLoginWidget::saveCredentials()
+QString PwdLoginWidget::legacyCredentialsPath() const
 {
-    QDir().mkpath(m_credentialsDirectory);
-    QSaveFile file(credentialsPath());
-    if (!file.open(QIODevice::WriteOnly)) return;
+    const QDir directory(m_credentialsDirectory);
+    const QString scoped = directory.filePath("LemonApp." + m_environment + ".dat");
+    if (QFileInfo::exists(scoped)) return scoped;
+    const QString unscoped = directory.filePath("LemonApp.dat");
+    return m_environment == "Pro" && QFileInfo::exists(unscoped) ? unscoped : QString();
+}
+
+QString PwdLoginWidget::saveCredentials(bool onlyIfMissing)
+{
     const bool remember = ui->checkBtnAutoPwd->isChecked();
-    QJsonObject object{{"re", remember ? 1 : 0}, {"u", ui->editUserName->text().trimmed()},
-                       {"p", remember ? ui->editPwd->text() : QString()}};
-    file.write(QJsonDocument(object).toJson());
-    file.commit();
+    QByteArray plain = QJsonDocument(QJsonObject{{"version", 1}, {"re", remember ? 1 : 0},
+        {"u", ui->editUserName->text().trimmed()}, {"p", remember ? ui->editPwd->text() : QString()}}).toJson(QJsonDocument::Compact);
+    QByteArray encrypted;
+    const bool protectedData = WindowsDataProtection::transform(plain, &encrypted, true, L"LemonWorkTool login");
+    plain.fill('\0');
+    if (!protectedData) return QStringLiteral("登录信息未能加密。");
+
+    const QString programPath = credentialsPath(m_credentialsDirectory);
+    const QString userPath = credentialsPath(m_userCredentialsDirectory);
+    if (writeEncryptedCredentials(programPath, encrypted, onlyIfMissing)) {
+        if (!userPath.isEmpty() && userPath != programPath && !writeEncryptedCredentials(userPath, encrypted, onlyIfMissing))
+            return QStringLiteral("用户目录中的备用登录记录未能保存。");
+        return {};
+    }
+    // An existing program record takes precedence on restart, so a user copy alone cannot replace it.
+    if (QFileInfo::exists(programPath) || !legacyCredentialsPath().isEmpty())
+        return QStringLiteral("程序目录中的登录记录未能更新。");
+    if (userPath != programPath && writeEncryptedCredentials(userPath, encrypted, onlyIfMissing)) return {};
+    return QStringLiteral("登录信息未能保存。");
 }
 
 void PwdLoginWidget::loadCredentials()
@@ -444,17 +488,46 @@ void PwdLoginWidget::loadCredentials()
     ui->editUserName->clear();
     ui->editPwd->clear();
     ui->checkBtnAutoPwd->setChecked(false);
-    QString path = credentialsPath();
-    // Existing unscoped credentials belonged to the original production login.
-    if (m_environment == "Pro" && !QFileInfo::exists(path))
-        path = QDir(m_credentialsDirectory).filePath("LemonApp.dat");
+    QString path = credentialsPath(m_credentialsDirectory);
+    bool legacy = false;
+    if (!QFileInfo::exists(path)) {
+        path = legacyCredentialsPath();
+        legacy = !path.isEmpty();
+        if (!legacy) path = credentialsPath(m_userCredentialsDirectory);
+    }
+    if (!QFileInfo::exists(path)) return;
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) return;
-    const auto object = QJsonDocument::fromJson(file.readAll()).object();
+    if (!file.open(QIODevice::ReadOnly)) {
+        showCredentialError(QStringLiteral("无法读取保存的登录信息，请重新登录。"));
+        return;
+    }
+    QByteArray plain;
+    if (legacy) {
+        plain = file.readAll();
+    } else if (!WindowsDataProtection::transform(file.readAll(), &plain, false)) {
+        showCredentialError(QStringLiteral("无法解密保存的登录信息，请重新登录。"));
+        return;
+    }
+    const auto object = QJsonDocument::fromJson(plain).object();
+    plain.fill('\0');
+    if ((!legacy && object.value("version").toInt() != 1) || !object.value("u").isString()) {
+        showCredentialError(QStringLiteral("保存的登录信息无效，请重新登录。"));
+        return;
+    }
     ui->editUserName->setText(object.value("u").toString());
     const bool remember = object.value("re").toInt() == 1;
     ui->checkBtnAutoPwd->setChecked(remember);
     if (remember) ui->editPwd->setText(object.value("p").toString());
+    if (legacy) {
+        const auto warning = saveCredentials(true);
+        if (!warning.isEmpty()) showCredentialError(warning);
+    }
+}
+
+void PwdLoginWidget::showCredentialError(const QString &message)
+{
+    ui->labelPwdError->setText(message);
+    ui->labelPwdError->show();
 }
 
 void PwdLoginWidget::resetSession()
@@ -494,6 +567,7 @@ void PwdLoginWidget::setEnvironment(const QString &environment)
     forgetPwdUrl = config.GetAccountUrlByKey(lemoncofighelper::kForgotPasswordUrlKey);
     ui->labelPwdError->clear();
     ui->labelPwdError->hide();
+    m_credentialSaveWarning.clear();
     loadCredentials();
 }
 
@@ -591,7 +665,7 @@ void PwdLoginWidget::completeLogin()
     if (!m_refreshing) {
         m_pGlobalData->m_nServiceId = m_pendingSession.m_nServiceId;
         m_pGlobalData->m_strAppAsId = m_pendingSession.m_strAppAsId;
-        saveCredentials();
+        m_credentialSaveWarning = saveCredentials();
     }
     m_pGlobalData->m_bLogin = true;
     m_expiresAt = m_pendingExpiresAt;
@@ -611,8 +685,9 @@ void PwdLoginWidget::completeLogin()
 
 QString PwdLoginWidget::sessionStatusMessage() const
 {
+    const QString saveWarning = m_credentialSaveWarning.isEmpty() ? QString() : QStringLiteral("。") + m_credentialSaveWarning;
     if (!m_nextRefreshAt.isValid())
-        return QStringLiteral("已登录，服务端未提供有效期，请手动刷新授权");
+        return QStringLiteral("已登录，服务端未提供有效期，请手动刷新授权") + saveWarning;
     return QStringLiteral("授权有效，%1 自动刷新")
-        .arg(m_nextRefreshAt.toLocalTime().toString("MM-dd HH:mm"));
+        .arg(m_nextRefreshAt.toLocalTime().toString("MM-dd HH:mm")) + saveWarning;
 }

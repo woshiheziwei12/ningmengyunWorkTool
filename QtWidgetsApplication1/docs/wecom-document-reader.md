@@ -2,13 +2,21 @@
 
 入口：工作台 → 查询与会话 → 企业微信文档读取（功能 ID 28）。
 
-1. 粘贴“2026-运营支持组项目进度表”的完整企业微信文档链接。初始显示不含分享码的文档地址；需要分享码时粘贴原分享链接。
+1. 从下拉列表按名称选择表格，初始包含“2026-运营支持组项目进度表”。“手动访问”可粘贴完整分享链接并读取，临时选项随页面关闭而消失。“添加到列表”填写名称和链接，保存后立即可选。临时访问后添加会预填链接，取数成功时也会预填文档标题。
 2. 点击“扫码登录”，在嵌入的官方页面完成登录。工具使用独立 WebView2 用户目录，并在登录成功后加密保存文档 Cookie，不读取 Chrome/Edge 的个人配置。页面单独显示保存是否成功。
 3. 点击“获取最新数据”。首次获取尚未登录时也会打开扫码窗口。关闭重开后先尝试复用本地登录；8 秒内仍未通过文档访问验证时显示官方页面，网络慢时也可在该页面继续等待。每次重新读取文档目录，以本机当天日期筛选全部日期工作表并按日期升序读取。
 4. 通过工作表标签查看内容。行号和列号保持原位置，悬停可查看完整文本和链接，Ctrl+C 复制选区。
 5. 点击“导出 JSON”。导出采用原子写入；部分成功或停止读取的结果保留失败表及原因，`complete` 为 false。
 
-只读取固定文档，不创建 GitLab MR，不修改文档或代码分支。该功能不依赖柠檬云账号的文档权限；需使用有权查看该文档的企业微信身份。
+桌面支持 `https://doc.weixin.qq.com/sheet/<文档 ID>` 格式的企业微信表格。读取权限取决于当前扫码的企业微信账号。
+
+## 表格清单与分发
+
+项目中的 `QtWidgetsApplication1/WecomDocuments.json` 是初始清单，构建时复制到 EXE 旁，保留已有的运行目录清单。运行时先查 EXE 旁的文件，缺失时查 `%LOCALAPPDATA%/LemonCloud/LemonWorkTool/WecomDocuments.json`。两处都没有时显示预置表格。已有清单损坏或无法读取时显示错误提示。
+
+新增绑定原子写回当前生效的清单。两处都没有时优先在 EXE 旁创建，程序目录不可写时保存在用户目录。清单版本为 1，`documents` 数组的每项包含 `name` 和 `url`，完整分享链接保留查询参数。相同文档 ID 更新前需要确认。
+
+打包时将要分发的清单放到 EXE 旁。其他使用者解压后可直接按名称选择，使用自己的企业微信身份扫码。
 
 ## 日期与数据约定
 
@@ -28,7 +36,7 @@
 ```json
 {
   "schemaVersion": 1,
-  "documentId": "固定文档标识",
+  "documentId": "本次读取的文档标识",
   "title": "文档标题",
   "fromDate": "2026-10-14",
   "fetchedAt": "UTC 时间",
@@ -69,7 +77,7 @@ pwsh -NoProfile -File .\Read-WecomDocument.ps1
 pwsh -NoProfile -File .\Read-WecomDocument.ps1 -FromDate (Get-Date).AddDays(1).ToString('yyyy-MM-dd')
 ```
 
-成功返回 `{"protocolVersion":1,"ok":true,"data":Snapshot}`。`ok` 表示已返回读取结果，仍应检查 `data.complete`、`data.cancelled` 及各工作表的 `loaded/error`，不可将部分结果当成完整数据。每次 read 都重新联网获取，不返回上次页面缓存。使用文档页面当前填写的完整分享链接，未打开页面时使用固定文档的默认链接。
+成功返回 `{"protocolVersion":1,"ok":true,"data":Snapshot}`。`ok` 表示已返回读取结果，仍应检查 `data.complete`、`data.cancelled` 及各工作表的 `loaded/error`，不可将部分结果当成完整数据。每次 read 都重新联网获取。接口始终读取原运营支持组项目进度表，使用清单中该 ID 的完整分享链接，缺少绑定时使用默认链接。桌面选中其他文档时，助手读取结果通过接口返回，页面继续保留当前文档。
 
 失败返回 `{"protocolVersion":1,"ok":false,"error":{"code":"...","message":"..."}}`，脚本退出码为 2。常见代码：
 
@@ -94,6 +102,8 @@ pwsh -NoProfile -File .\Read-WecomDocument.ps1 -FromDate (Get-Date).AddDays(1).T
 
 登录配置目录为当前用户本地数据目录下 `LemonCloud/LemonWorkTool/WecomWebView`。会话失效后重新扫码；不将 Cookie 写入源码、日志或 JSON。请求使用官方页面同源浏览器会话和正常 TLS 校验。
 
+WebView2 进程中断或返回状态失效（例如 `0x8007139f`）时会释放旧浏览器。页面尚未打开时尝试重新连接一次。读取途中中断时，可点击“获取最新数据”重新连接，工具会继续使用本地加密会话。
+
 ### 授权期限与重启复用
 
 - 企业微信网页会话未提供可确认的统一授权期限，不能套用柠檬云 Cookie/JWT 续期规则或写死为若干天。服务器可提前撤销会话、改变文档权限；是否可用以每次联网验证为准。工具不会延长服务器授权。
@@ -103,13 +113,15 @@ pwsh -NoProfile -File .\Read-WecomDocument.ps1 -FromDate (Get-Date).AddDays(1).T
 
 ## 验证
 
-`Tests/WecomDocumentTests.targets` 是可选的独立测试入口。验证日期边界、固定链接校验、字符串/富文本/数字/日期映射、损坏内容、异步模式、部分结果、版本变化、取消后迟到回调、导出格式及页面初始状态。
+`Tests/WecomDocumentTests.targets` 是可选的独立测试入口。验证日期边界、文档链接与 ID、清单持久化、字符串/富文本/数字/日期映射、损坏内容、异步模式、部分结果、版本变化、取消后迟到回调、导出格式及页面初始状态。
 
 本地抓包回归可运行 `Tests/prepare_wecom_capture.py CAPTURE.txt BuildCheck/WecomDocument/fixtures`，再向测试 EXE 传入 `--capture-dir`。脚本仅输出筛选后的数据响应，不保存请求头、Cookie 或原始请求 URL；测试数据含私人表格内容，仅放忽略目录。
 
 测试 EXE 的 `--browser-smoke` 只验证 WebView2 和官方页面加载，不代表手机扫码及账号权限已验证。真实扫码需由账号持有人完成。
 
 会话测试覆盖 DPAPI 磁盘往返、明文检查、损坏拒绝、过期及域名过滤、保存失败、保存期间忙碌与取消后迟到回调。`--session-smoke` 在独立目录中向真实 WebView2 恢复合成 Cookie，再通过 CookieManager 读回核对属性，全程不发网络请求、不使用真实账号。此测试不等同真实企业微信授权到期或跨进程扫码联调。
+
+`--session-recovery-smoke` 同样使用合成会话。程序输出 `READY` 后，如果该隔离配置的 WebView2 进程被测试驱动终止，会验证浏览器重新创建并恢复原来的会话。
 
 `WecomLocalServerTests.cpp` 使用独立命名管道验证状态、实时请求分发、日期/字段约束、分段请求、并发忙碌、部分结果、断开及登录错误。向测试程序传入 `--client-script Tools/Read-WecomDocument.ps1` 后，还会在独立 PowerShell 进程测试实际调用脚本：只替换临时副本的测试端点，传回含中文及多块内容的 JSON，不使用真实账号。
 

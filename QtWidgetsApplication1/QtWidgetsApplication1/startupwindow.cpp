@@ -2,6 +2,7 @@
 #include "ui_startupwindow.h"
 #include "pwdloginwidget.h"
 #include "lemoncofighelper.h"
+#include "Common/comboboxpopup.h"
 #include <QMouseEvent>
 #include <QDesktopServices>
 #include <QSslSocket>
@@ -14,6 +15,9 @@ StartUpWindow::StartUpWindow(GlobalData *globalData, QWidget *parent, const QStr
     m_pPwdLoginForm(nullptr)
 {
     ui->setupUi(this);
+    auto *environmentOptions = ui->loginEnvironment->view();
+    environmentOptions->setObjectName("loginEnvironmentOptions");
+    spaceComboItems(environmentOptions);
     ui->loginEnvironment->addItem(QStringLiteral("正式环境"), "Pro");
     ui->loginEnvironment->addItem(QStringLiteral("测试环境"), "Dev2");
     const bool production = lemoncofighelper::CurrentHttpEnvironment().compare("Pro", Qt::CaseInsensitive) == 0;
@@ -43,6 +47,8 @@ StartUpWindow::StartUpWindow(GlobalData *globalData, QWidget *parent, const QStr
     if (!qss.isEmpty())
     {
         this->setStyleSheet(qss);
+        // The combo popup is a separate window, so apply its theme directly.
+        environmentOptions->setStyleSheet(qss);
     }
 
     m_pPwdLoginForm = new PwdLoginWidget(m_pGlobalData, this, credentialsDirectory);

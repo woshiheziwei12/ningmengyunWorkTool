@@ -20,7 +20,7 @@ class PwdLoginWidget : public QWidget
 
 public:
     explicit PwdLoginWidget(GlobalData *globalData, QWidget *parent = nullptr,
-                            const QString &credentialsDirectory = QString());
+                            const QString &credentialsDirectory = {}, const QString &userCredentialsDirectory = {});
     ~PwdLoginWidget();
     void setEnvironment(const QString &environment);
     void setAutoRefreshEnabled(bool enabled);
@@ -53,9 +53,11 @@ private:
     void completeLogin();
     void fetchServiceParams();
     void fetchPlanServiceParams();
-    void saveCredentials();
+    QString saveCredentials(bool onlyIfMissing = false);
     void loadCredentials();
-    QString credentialsPath() const;
+    QString credentialsPath(const QString &directory) const;
+    QString legacyCredentialsPath() const;
+    void showCredentialError(const QString &message);
     void resetSession();
     void setLoginBusy(bool busy);
     void failLogin(const QString &message);
@@ -70,9 +72,11 @@ private:
     bool m_autoRefreshEnabled = false;
     QString forgetPwdUrl;
     QString m_environment, m_credentialsDirectory;
+    QString m_userCredentialsDirectory;
     QPointer<QNetworkReply> m_reply;
     int m_loginSerial = 0;
     bool m_busy = false;
+    QString m_credentialSaveWarning;
 };
 
 #endif // PWDLOGINFORM_H

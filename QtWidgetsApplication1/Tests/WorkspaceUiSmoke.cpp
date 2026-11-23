@@ -11,6 +11,7 @@
 #include "Common/globaldata.h"
 #include "Common/LocalSqlInstances.h"
 #include "Common/repairpathsettings.h"
+#include "Common/WecomDocumentData.h"
 #include "Common/WecomLocalServer.h"
 #include "subjectbalanceimportwidget.h"
 #include <QLocalSocket>
@@ -189,6 +190,22 @@ int main(int argc, char **argv)
         require(window.width() == 800 && window.height() == 480, "tool does not force oversized window");
         require(scroll->widget()->size().height() >= scroll->viewport()->height(), "small window content accessible");
         if (id == 8 || id == 18 || id == 19 || id == 20 || id == 21 || id == 22 || id == 23 || id == 24 || id == 25 || id == 26 || id == 27 || id == 28) capture(QString("small-%1").arg(id));
+        if (id == 28) {
+            auto *selector = scroll->widget()->findChild<QComboBox*>("wecomDocumentSelector");
+            require(selector && selector->count() > 0, "document dropdown starts with a saved choice");
+            auto *popup = selector->view()->window();
+            popup->setAttribute(Qt::WA_DontShowOnScreen);
+            selector->showPopup();
+            settle();
+            const auto index = selector->model()->index(selector->currentIndex(), selector->modelColumn());
+            require(selector->view()->visualRect(index).height() >= 36, "document popup has a readable row height");
+            auto preview = window.grab();
+            QPainter painter(&preview);
+            painter.drawPixmap(window.mapFromGlobal(popup->mapToGlobal(QPoint())), popup->grab());
+            painter.end();
+            require(preview.save(output + "/wecom-document-popup.png"), "save opened document popup");
+            selector->hidePopup();
+        }
         require(QMetaObject::invokeMethod(&window, "onBackToMain"), "back route");
         require(catalog->currentCategory() == FunctionSelectWidget::categoryForFunction(id), "back returns to owning category");
         require(mainStack->currentWidget() == catalog, "back shows catalog");
@@ -306,25 +323,25 @@ int main(int argc, char **argv)
         require(window.isVisible(), "tray click restores window");
     }
     {
-        // Exercise the actual window -> tool page -> reader -> IPC callback without a network login.
-        auto *url = window.findChild<QLineEdit*>("wecomDocumentUrl");
-        require(url, "document page exists after route tests");
-        const QString originalUrl = url->text(); url->setText("https://example.test/not-the-supported-document");
+        // The advertised IPC document stays fixed even when the page selects another table.
+        auto *documents = window.findChild<QComboBox*>("wecomDocumentSelector");
+        require(documents && !documents->isEditable(), "saved document selector exists after route tests");
+        documents->addItem(QStringLiteral("示例文档"), QUrl("https://doc.weixin.qq.com/sheet/smoke_example"));
+        documents->setCurrentIndex(documents->count() - 1);
         window.hide();
         QLocalSocket pipe; pipe.connectToServer(WecomLocalServer::defaultServerName());
         QElapsedTimer timer; timer.start();
         while (pipe.state()!=QLocalSocket::ConnectedState && timer.elapsed()<3000) { QApplication::processEvents(); QThread::msleep(1); }
         require(pipe.state()==QLocalSocket::ConnectedState, "hidden workspace keeps API available");
-        pipe.write("{\"protocolVersion\":1,\"action\":\"read\"}\n"); pipe.flush();
+        pipe.write("{\"protocolVersion\":1,\"action\":\"status\"}\n"); pipe.flush();
         QByteArray response;
         while (!response.endsWith('\n') && timer.elapsed()<5000) { QApplication::processEvents(); response+=pipe.readAll(); QThread::msleep(1); }
         const auto object=QJsonDocument::fromJson(response).object();
-        require(!object.value("ok").toBool() && object.value("error").toObject().value("code").toString()=="read_failed", "IPC reaches real reader URL validation and returns its failure");
-        require(!window.hasActiveTasks(), "API completion clears workspace task guard");
-        require(!window.isVisible(), "background read does not force workspace to foreground");
-        url->setText(originalUrl);
+        require(object.value("ok").toBool() && object.value("data").toObject().value("documentId").toString() == WecomDocument::documentId(),
+            "IPC advertises the fixed project document independently of selection");
+        require(!window.hasActiveTasks() && !window.isVisible(), "background status leaves workspace idle and hidden");
     }
-    fprintf(stdout, "PASS: workspace API auto-start, lazy browser, background dispatch and reader callback.\n");
+    fprintf(stdout, "PASS: workspace API auto-start, lazy browser, and fixed document status after switching tables.\n");
     fprintf(stdout, "PASS: environment palette/menu/icon, task guard, close-to-tray and restore.\n");
     fprintf(stdout, "PASS: 23 tool entries, 5 categories, search, 18 local routes, mocked balance page and 5 restore aliases, category return, small windows, cloud tables and dialog.\n");
     return 0;
