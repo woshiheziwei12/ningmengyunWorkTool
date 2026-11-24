@@ -91,7 +91,7 @@ WecomDocumentWidget::WecomDocumentWidget(QWidget *parent, const QString &catalog
     m_export = new QPushButton(QStringLiteral("导出 JSON"), this); m_export->setObjectName("btnWecomExport"); m_export->setEnabled(false);
     for (auto *button : {m_login, m_read, m_cancel, m_export}) buttons->addWidget(button);
     buttons->addStretch(); layout->addLayout(buttons);
-    m_status = new QLabel(catalogError.isEmpty() ? QStringLiteral("尚未获取数据。筛选日期按电脑本地日期计算。") : catalogError, this);
+    m_status = new QLabel(catalogError.isEmpty() ? QStringLiteral("尚未获取数据。") : catalogError, this);
     m_status->setObjectName("wecomReadStatus"); m_status->setWordWrap(true); m_status->setTextFormat(Qt::PlainText); layout->addWidget(m_status);
     m_tabs = new QTabWidget(this); m_tabs->setObjectName("wecomSheetTabs"); m_tabs->setMinimumHeight(360); layout->addWidget(m_tabs, 1);
 
@@ -141,12 +141,12 @@ WecomDocumentWidget::WecomDocumentWidget(QWidget *parent, const QString &catalog
     connect(m_login, &QPushButton::clicked, this, [this]() {
         m_showReadInPage = true;
         clearResults();
-        m_reader->signIn(selectedDocumentUrl());
+        m_reader->signIn(selectedDocument());
     });
     connect(m_read, &QPushButton::clicked, this, [this]() {
         m_showReadInPage = true;
         clearResults();
-        m_reader->read(selectedDocumentUrl());
+        m_reader->read(selectedDocument());
     });
     connect(m_cancel, &QPushButton::clicked, m_reader, &WecomDocumentReader::cancel);
     connect(m_export, &QPushButton::clicked, this, &WecomDocumentWidget::exportJson);
@@ -154,7 +154,9 @@ WecomDocumentWidget::WecomDocumentWidget(QWidget *parent, const QString &catalog
     connect(m_addDocument, &QPushButton::clicked, this, [this]() { openDocumentDialog(true); });
     connect(m_documents, qOverload<int>(&QComboBox::currentIndexChanged), this, [this]() {
         clearResults();
-        m_status->setText(QStringLiteral("已切换表格，请获取最新数据。"));
+        m_status->setText(selectedDocument().selection == WecomDocument::SheetSelection::LatestDate
+            ? QStringLiteral("获取数据时只读取页签日期最新的一页。")
+            : QStringLiteral("已切换表格，请获取最新数据。"));
     });
 }
 WecomDocumentWidget::~WecomDocumentWidget()
@@ -168,18 +170,38 @@ void WecomDocumentWidget::finishAssistant(const QJsonObject &response)
     auto reply = std::move(m_assistantReply); m_assistantReply = {};
     if (reply) reply(response);
 }
-void WecomDocumentWidget::readForAssistant(const QDate &fromDate, WecomLocalServer::Reply reply)
+QJsonObject WecomDocumentWidget::assistantDocuments() const
+{
+    auto catalog = m_catalog;
+    const QString error = catalog.load();
+    if (!error.isEmpty()) return WecomLocalServer::error("catalog_error", error);
+    return WecomLocalServer::success(catalog.documentList());
+}
+
+void WecomDocumentWidget::readForAssistant(const QDate &fromDate, const QString &documentId, const QUrl &url,
+                                          WecomLocalServer::Reply reply)
 {
     if (m_reader->isBusy() || m_assistantReply) {
         reply(WecomLocalServer::error("busy", QStringLiteral("工具正在登录或读取文档，请等待完成后重试。"))); return;
     }
-    const QString defaultId = WecomDocument::documentId();
-    const QUrl savedUrl = m_catalog.urlForId(defaultId);
+    auto catalog = m_catalog;
+    const QString error = catalog.load();
+    if (!error.isEmpty() && (!url.isEmpty() || !documentId.isEmpty())) {
+        reply(WecomLocalServer::error("catalog_error", error));
+        return;
+    }
+    const auto document = !error.isEmpty()
+        ? WecomDocument::Document{QString(), WecomDocument::defaultUrl()}
+        : (url.isEmpty() ? catalog.entryForRead(documentId) : catalog.entryForUrl(url));
+    if (document.url.isEmpty()) {
+        reply(WecomLocalServer::error("document_not_found", QStringLiteral("当前表格清单中没有此文档。")));
+        return;
+    }
     m_assistantReply = std::move(reply);
-    m_showReadInPage = WecomDocument::documentIdFromUrl(selectedDocumentUrl()) == defaultId;
+    m_showReadInPage = WecomDocument::documentIdFromUrl(selectedDocumentUrl()) == WecomDocument::documentIdFromUrl(document.url);
     if (m_showReadInPage) clearResults();
-    (m_showReadInPage ? m_status : m_assistantStatus)->setText(QStringLiteral("助手已请求读取项目进度表…"));
-    m_reader->read(savedUrl.isEmpty() ? WecomDocument::defaultUrl() : savedUrl, fromDate);
+    (m_showReadInPage ? m_status : m_assistantStatus)->setText(QStringLiteral("助手已请求读取企业微信表格…"));
+    m_reader->read(document, fromDate);
 }
 
 void WecomDocumentWidget::populateDocuments(const QUrl &selected)
@@ -195,6 +217,11 @@ void WecomDocumentWidget::populateDocuments(const QUrl &selected)
 QUrl WecomDocumentWidget::selectedDocumentUrl() const
 {
     return m_documents->currentData().toUrl();
+}
+
+WecomDocument::Document WecomDocumentWidget::selectedDocument() const
+{
+    return m_catalog.entryForUrl(selectedDocumentUrl());
 }
 
 void WecomDocumentWidget::openDocumentDialog(bool saveToCatalog)
@@ -245,7 +272,7 @@ void WecomDocumentWidget::openDocumentDialog(bool saveToCatalog)
                 if (replace && QMessageBox::question(&dialog, QStringLiteral("更新表格绑定"),
                     QStringLiteral("这张表格已在列表中。要更新它的名称和链接吗？"),
                     QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
-                m_catalog.save({name, url}, replace, &error);
+                m_catalog.save({name, url, WecomDocument::SheetSelection::All}, replace, &error);
             }
         }
         if (error.isEmpty()) {
@@ -278,7 +305,7 @@ void WecomDocumentWidget::accessTemporaryDocument(const QUrl &url)
     m_documents->setCurrentIndex(m_temporaryIndex);
     m_showReadInPage = true;
     clearResults();
-    m_reader->read(url);
+    m_reader->read(selectedDocument());
 }
 void WecomDocumentWidget::clearResults()
 {
@@ -318,10 +345,21 @@ void WecomDocumentWidget::showSnapshot(const WecomDocument::Snapshot &snapshot)
         m_tabs->addTab(page, sheet.name + (sheet.loaded ? QString() : QStringLiteral("（未完成）")));
     }
     m_export->setEnabled(true);
-    if (snapshot.sheets.isEmpty()) m_status->setText(QStringLiteral("获取完成：没有 %1 及之后的日期工作表。").arg(snapshot.fromDate.toString(Qt::ISODate)));
-    else m_status->setText(QStringLiteral("%1：成功读取 %2/%3 个工作表。筛选日期 %4；获取时间 %5。%6")
+    const bool latest = snapshot.selection == WecomDocument::SheetSelection::LatestDate;
+    const bool all = snapshot.selection == WecomDocument::SheetSelection::All;
+    if (snapshot.sheets.isEmpty()) {
+        QString message = QStringLiteral("获取完成：没有工作表。");
+        if (latest) message = QStringLiteral("获取完成：没有可从名称识别日期的工作表。");
+        else if (!all) message = QStringLiteral("获取完成：没有 %1 及之后的日期工作表。").arg(snapshot.fromDate.toString(Qt::ISODate));
+        m_status->setText(message);
+        return;
+    }
+    QString filter = QStringLiteral("全部页签");
+    if (latest) filter = QStringLiteral("最新页签日期 %1").arg(snapshot.sheets.first().date.toString(Qt::ISODate));
+    else if (!all) filter = QStringLiteral("筛选日期 %1").arg(snapshot.fromDate.toString(Qt::ISODate));
+    m_status->setText(QStringLiteral("%1：成功读取 %2/%3 个工作表。%4；获取时间 %5。%6")
         .arg(snapshot.cancelled ? QStringLiteral("已停止") : (loaded == snapshot.sheets.size() ? QStringLiteral("获取完成") : QStringLiteral("部分获取成功")))
-        .arg(loaded).arg(snapshot.sheets.size()).arg(snapshot.fromDate.toString(Qt::ISODate))
+        .arg(loaded).arg(snapshot.sheets.size()).arg(filter)
         .arg(snapshot.fetchedAt.toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
         .arg(loaded == snapshot.sheets.size() ? QString() : QStringLiteral("导出结果会保留未完成状态及原因。")));
 }

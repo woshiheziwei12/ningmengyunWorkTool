@@ -2,20 +2,19 @@
 #include <QObject>
 #include <QDate>
 #include <QJsonObject>
-#include <QLocalServer>
+#include <QUrl>
+#include "LocalToolServer.h"
 #include <functional>
-#include <memory>
-class QLockFile;
-class QLocalSocket;
 
 // A single read-only endpoint for the running desktop tool, restricted to its Windows user.
 class WecomLocalServer : public QObject
 {
     Q_OBJECT
 public:
-    using Reply = std::function<void(const QJsonObject &)>;
-    using ReadHandler = std::function<void(const QDate &, Reply)>;
-    explicit WecomLocalServer(ReadHandler handler, QObject *parent = nullptr);
+    using Reply = LocalToolServer::Reply;
+    using ReadHandler = std::function<void(const QDate &, const QString &documentId, const QUrl &, Reply)>;
+    using ListHandler = std::function<QJsonObject()>;
+    explicit WecomLocalServer(ReadHandler handler, ListHandler listDocuments, QObject *parent = nullptr);
     ~WecomLocalServer() override;
     bool start(const QString &name = QString(), const QString &lockDirectory = QString());
     QString statusText() const;
@@ -23,10 +22,9 @@ public:
     static QJsonObject error(const QString &code, const QString &message);
     static QJsonObject success(const QJsonObject &data);
 private:
-    void accept(QLocalSocket *socket);
-    QLocalServer m_server;
-    std::unique_ptr<QLockFile> m_lock;
+    void dispatch(const QJsonObject &request, Reply reply);
+    LocalToolServer m_server;
     ReadHandler m_read;
-    QString m_error;
+    ListHandler m_listDocuments;
     bool m_readActive = false;
 };

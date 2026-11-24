@@ -5,6 +5,7 @@
 #include <QList>
 #include <QString>
 #include <QWidget>
+#include "Common/LocalToolServer.h"
 
 class GlobalData;
 class QComboBox;
@@ -16,6 +17,7 @@ class QNetworkReply;
 class QPushButton;
 class QTextEdit;
 class QTimer;
+struct ImportPackageUploadRequest;
 
 class ImportPackageUploadWidget : public QWidget
 {
@@ -25,6 +27,8 @@ public:
     explicit ImportPackageUploadWidget(GlobalData *globalData, QWidget *parent = nullptr);
     ~ImportPackageUploadWidget();
     void reloadImportHistory();
+    // Handles a CLI request with the workbench's current session and environment.
+    void handleLocalRequest(const QJsonObject &request, LocalToolServer::Reply reply);
 
 signals:
     void backToMain();
@@ -47,24 +51,24 @@ private:
         QString importId;
         QDateTime uploadTime;
         QString fileName;
-        int serviceId = 0;
     };
 
     void setupUi();
     void startUpload(const QString &zipPath);
+    void beginUpload(const ImportPackageUploadRequest &request, LocalToolServer::Reply reply = {});
+    void startResultQuery(const QString &importId, const QString &host, LocalToolServer::Reply reply = {});
     void setRunning(bool running, const QString &message = QString());
     void setQueryRunning(bool running, const QString &message = QString());
     void loadImportHistory();
     void refreshImportHistoryCombo();
-    void recordSuccessfulUpload(const QString &zipPath, const QString &importId, int serviceId);
-    QString historyFilePath() const;
+    void selectSuccessfulUpload(const QString &importId);
     QString selectedImportId() const;
     QString selectedImporterApiHost() const;
     QString buildImportResultUrl(QString *errorMessage) const;
     void onResultReplyFinished(QNetworkReply *reply, int querySerial);
     void handleImportResultResponse(const QString &importId, const QByteArray &body);
     void scheduleNextResultPoll(const QString &message);
-    void finishResultQuery(const QString &message, const QString &resultText = QString());
+    void finishResultQuery(const QString &message, const QString &resultText = {}, const QJsonObject &response = {});
     void appendLog(const QString &message);
 
     GlobalData *m_pGlobalData;
@@ -84,6 +88,7 @@ private:
     QString m_currentQueryImporterApiHost;
     QTimer *m_pResultPollTimer;
     QNetworkReply *m_pResultReply;
+    LocalToolServer::Reply m_localQueryReply;
     QList<ImportHistoryRecord> m_importHistory;
 };
 

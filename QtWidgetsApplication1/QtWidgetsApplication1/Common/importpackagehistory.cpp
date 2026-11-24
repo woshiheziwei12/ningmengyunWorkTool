@@ -25,6 +25,13 @@ QMutex &historyMutex()
     return mutex;
 }
 
+// Used under historyMutex when the accepted task could not be saved to disk.
+QJsonArray &unsavedTasks()
+{
+    static QJsonArray tasks;
+    return tasks;
+}
+
 QJsonArray readHistoryArray(const QString &path)
 {
     QFile file(path);
@@ -38,6 +45,15 @@ QJsonArray readHistoryArray(const QString &path)
         : QJsonArray();
 }
 
+// Legacy entries without environment or account stay separate from scoped entries.
+QString historyKey(const QJsonObject &record)
+{
+    return QStringLiteral("%1:%2:%3:%4")
+        .arg(record.value("environment").toString())
+        .arg(record.value("userId").toInt()).arg(record.value("serviceId").toInt())
+        .arg(record.value("importId").toString().trimmed());
+}
+
 QJsonArray mergeHistoryArrays(const QJsonArray &primary, const QJsonArray &additional)
 {
     QJsonArray merged;
@@ -49,9 +65,10 @@ QJsonArray mergeHistoryArrays(const QJsonArray &primary, const QJsonArray &addit
                 continue;
             const QString importId = value.toObject()
                 .value(QStringLiteral("importId")).toString().trimmed();
-            if (importId.isEmpty() || seenImportIds.contains(importId))
+            const QString key = historyKey(value.toObject());
+            if (importId.isEmpty() || seenImportIds.contains(key))
                 continue;
-            seenImportIds.insert(importId);
+            seenImportIds.insert(key);
             merged.append(value);
             if (merged.size() >= 100)
                 return;
@@ -72,8 +89,8 @@ bool writeHistoryArray(const QString &path, const QJsonArray &array)
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
-    file.write(QJsonDocument(array).toJson(QJsonDocument::Indented));
-    return file.commit();
+    const auto data = QJsonDocument(array).toJson(QJsonDocument::Indented);
+    return file.write(data) == data.size() && file.commit();
 }
 }
 
@@ -87,62 +104,79 @@ QString ImportPackageHistory::historyFilePath()
         QStringLiteral("LemonCloud/LemonWorkTool/import_package_upload_history.json"));
 }
 
-void ImportPackageHistory::recordSuccessfulUpload(
+bool ImportPackageHistory::recordSuccessfulUpload(
     const QString &zipPath,
     const QString &importId,
     int serviceId,
-    const QString &importerApiHost)
+    const QString &importerApiHost,
+    const QString &environment,
+    int userId)
 {
     const QString trimmedImportId = importId.trimmed();
     if (trimmedImportId.isEmpty())
-        return;
+        return false;
 
     QMutexLocker mutexLocker(&historyMutex());
+    QJsonObject record;
+    record.insert(QStringLiteral("importId"), trimmedImportId);
+    record.insert(QStringLiteral("uploadTime"), QDateTime::currentDateTime().toString(Qt::ISODate));
+    record.insert(QStringLiteral("fileName"), QFileInfo(zipPath).fileName());
+    record.insert(QStringLiteral("serviceId"), serviceId);
+    if (!environment.isEmpty() && userId > 0) {
+        record["environment"] = environment;
+        record["userId"] = userId;
+    }
+    if (!importerApiHost.trimmed().isEmpty())
+        record.insert(QStringLiteral("importerApiHost"), importerApiHost.trimmed());
+
     const QString path = historyFilePath();
     QDir().mkpath(QFileInfo(path).absolutePath());
     QLockFile processLock(path + QStringLiteral(".lock"));
     processLock.setStaleLockTime(30000);
     if (!processLock.tryLock(5000))
     {
+        unsavedTasks() = mergeHistoryArrays(QJsonArray{record}, unsavedTasks());
         AppLogger::warning(QStringLiteral("导入任务历史文件正被占用，记录失败 importId=%1 path=%2")
             .arg(trimmedImportId, QDir::toNativeSeparators(path)));
-        return;
+        return false;
     }
 
-    QJsonArray existing = readHistoryArray(path);
-    QJsonArray withoutCurrent;
-    for (const QJsonValue &value : existing)
+    const auto updated = mergeHistoryArrays(mergeHistoryArrays(QJsonArray{record}, unsavedTasks()), readHistoryArray(path));
+    const bool saved = writeHistoryArray(path, updated);
+    if (!saved)
     {
-        if (!value.isObject()
-            || value.toObject().value(QStringLiteral("importId")).toString().trimmed()
-                != trimmedImportId)
-        {
-            withoutCurrent.append(value);
-        }
-    }
-
-    QJsonObject record;
-    record.insert(QStringLiteral("importId"), trimmedImportId);
-    record.insert(QStringLiteral("uploadTime"), QDateTime::currentDateTime().toString(Qt::ISODate));
-    record.insert(QStringLiteral("fileName"), QFileInfo(zipPath).fileName());
-    record.insert(QStringLiteral("serviceId"), serviceId);
-    if (!importerApiHost.trimmed().isEmpty())
-        record.insert(QStringLiteral("importerApiHost"), importerApiHost.trimmed());
-
-    QJsonArray updated;
-    updated.append(record);
-    for (const QJsonValue &value : withoutCurrent)
-    {
-        if (updated.size() >= 100)
-            break;
-        updated.append(value);
-    }
-
-    if (!writeHistoryArray(path, updated))
-    {
+        unsavedTasks() = mergeHistoryArrays(QJsonArray{record}, unsavedTasks());
         AppLogger::warning(QStringLiteral("写入共享导入任务历史失败 importId=%1 path=%2")
             .arg(trimmedImportId, QDir::toNativeSeparators(path)));
     }
+    else {
+        unsavedTasks() = {};
+    }
+    return saved;
+}
+
+QJsonObject ImportPackageHistory::scopedTask(const QString &importId, const QString &environment, int userId, int serviceId)
+{
+    for (const auto &value : scopedTasks(environment, userId, serviceId)) {
+        const auto record = value.toObject();
+        if (record.value("importId").toString() == importId) return record;
+    }
+    return {};
+}
+
+QJsonArray ImportPackageHistory::scopedTasks(const QString &environment, int userId, int serviceId)
+{
+    if (userId <= 0 || serviceId <= 0 || environment.isEmpty()) return {};
+    QMutexLocker mutexLocker(&historyMutex());
+    const auto records = mergeHistoryArrays(unsavedTasks(), readHistoryArray(historyFilePath()));
+    QJsonArray result;
+    for (const auto &value : records) {
+        const auto record = value.toObject();
+        if (record.value("environment").toString() == environment
+            && record.value("userId").toInt() == userId && record.value("serviceId").toInt() == serviceId)
+            result.append(record);
+    }
+    return result;
 }
 
 void ImportPackageHistory::migrateCurrentApplicationHistory()

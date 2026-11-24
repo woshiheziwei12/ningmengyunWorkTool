@@ -5,6 +5,7 @@
 #include <QVariant>
 
 namespace {
+constexpr int StandaloneVerificationMs = 12000;
 QString revision(const QJsonValue &value)
 { return value.isString() ? value.toString() : QString::number(value.toDouble(), 'f', 0); }
 }
@@ -18,20 +19,32 @@ WecomDocumentReader::WecomDocumentReader(WecomBrowser *browser, QObject *parent)
         m_openRequest.clear();
         if (m_busy) fail(message);
     });
+    connect(browser, &WecomBrowser::navigationFinished, this, [this](bool success) {
+        if (!success || !m_waitingBootstrap || !m_busy || !m_deferLoginPrompt) return;
+        m_deferLoginPrompt = false;
+        const int generation = m_generation;
+        QTimer::singleShot(StandaloneVerificationMs, this, [this, generation]() {
+            if (generation == m_generation && m_waitingBootstrap && m_busy) emit loginRequired();
+        });
+    });
     connect(browser, &WecomBrowser::bootstrapReceived, this, [this](const QUrl &url, const QJsonObject &response) {
         if (!m_busy || !m_waitingBootstrap || QUrlQuery(url).queryItemValue("id") != m_snapshot.documentId) return;
         WecomDocument::Metadata metadata; QString error;
         // The official page may first issue an unauthenticated request. Keep the login window open.
-        if (!WecomDocument::parseMetadata(response, &metadata, &error)) return;
+        if (!WecomDocument::parseMetadata(response, &metadata, &error, m_document)) return;
         m_openRequest = url; m_waitingBootstrap = false; m_loginTimeout.stop();
         emit authenticated();
         const int generation = m_generation; QPointer<WecomDocumentReader> guard(this);
         // Save a newly verified login before fetching sheets, so a later network failure
         // does not discard the successful scan. Save again at completion for rotated cookies.
-        m_browser->saveSession([guard, generation, response](const QString &) {
+        m_browser->saveSession([guard, generation, response](const QString &sessionError) {
             if (!guard || generation != guard->m_generation || !guard->m_busy) return;
             if (guard->m_readAfterLogin) guard->acceptMetadata(response);
-            else { guard->setBusy(false); emit guard->progress(QStringLiteral("企业微信文档登录成功，可以获取最新数据。")); }
+            else {
+                guard->setBusy(false);
+                emit guard->progress(QStringLiteral("企业微信文档登录成功，可以获取最新数据。"));
+                if (guard) emit guard->signInCompleted(sessionError);
+            }
         });
     });
 }
@@ -40,22 +53,36 @@ void WecomDocumentReader::setBusy(bool busy)
     if (m_busy == busy) return;
     m_busy = busy; setProperty("sessionBusyWecomRead", busy); emit busyChanged(busy);
 }
-void WecomDocumentReader::signIn(const QUrl &url) { begin(url, false, QDate::currentDate()); }
-void WecomDocumentReader::read(const QUrl &url, const QDate &date) { begin(url, true, date); }
-void WecomDocumentReader::begin(const QUrl &url, bool readAfterLogin, const QDate &date)
+void WecomDocumentReader::signIn(const QUrl &url) { signIn(WecomDocument::Document{{}, url}); }
+void WecomDocumentReader::signIn(const WecomDocument::Document &document)
+{
+    begin(document, false, QDate::currentDate(), LoginPrompt::Default);
+}
+void WecomDocumentReader::read(const QUrl &url, const QDate &date, LoginPrompt prompt)
+{
+    read(WecomDocument::Document{{}, url}, date, prompt);
+}
+void WecomDocumentReader::read(const WecomDocument::Document &document, const QDate &date, LoginPrompt prompt)
+{
+    begin(document, true, date, prompt);
+}
+void WecomDocumentReader::begin(const WecomDocument::Document &document, bool readAfterLogin, const QDate &date, LoginPrompt prompt)
 {
     if (m_busy) return;
+    const auto &url = document.url;
     QString error;
     if (!WecomDocument::validateUrl(url, &error) || !date.isValid()) {
         emit failed(error.isEmpty() ? QStringLiteral("筛选日期无效。") : error); return;
     }
-    const bool canRefresh = readAfterLogin && !m_openRequest.isEmpty() && url == m_documentUrl;
-    ++m_generation; m_readAfterLogin = readAfterLogin; m_documentUrl = url;
+    const bool canRefresh = readAfterLogin && !m_openRequest.isEmpty() && url == m_document.url;
+    ++m_generation; m_readAfterLogin = readAfterLogin; m_document = document;
     m_snapshot = {};
     m_snapshot.documentId = WecomDocument::documentIdFromUrl(url);
     m_snapshot.fromDate = date;
+    m_snapshot.selection = document.selection;
     m_sheetIndex = 0;
     m_asyncPolling = false;
+    m_deferLoginPrompt = prompt == LoginPrompt::AfterPageLoad;
     setBusy(true);
     if (canRefresh) {
         emit progress(QStringLiteral("正在获取最新工作表目录…"));
@@ -68,7 +95,9 @@ void WecomDocumentReader::begin(const QUrl &url, bool readAfterLogin, const QDat
         });
     } else {
         m_openRequest.clear(); m_waitingBootstrap = true;
-        if (readAfterLogin && m_browser->hasSavedSession()) {
+        if (m_deferLoginPrompt) {
+            emit progress(QStringLiteral("正在复用本地登录并验证文档权限…"));
+        } else if (readAfterLogin && m_browser->hasSavedSession()) {
             emit progress(QStringLiteral("正在复用本地登录并验证文档权限…"));
             const int generation = m_generation;
             QTimer::singleShot(8000, this, [this, generation]() {
@@ -86,10 +115,10 @@ void WecomDocumentReader::begin(const QUrl &url, bool readAfterLogin, const QDat
 void WecomDocumentReader::acceptMetadata(const QJsonObject &response)
 {
     QString error;
-    if (!WecomDocument::parseMetadata(response, &m_metadata, &error)) { m_openRequest.clear(); fail(error); return; }
+    if (!WecomDocument::parseMetadata(response, &m_metadata, &error, m_document)) { m_openRequest.clear(); fail(error); return; }
     m_snapshot.title = m_metadata.title;
     m_asyncPolling = response.value("clientVars").toObject().value("cgicode").toInt() == 200156;
-    m_snapshot.sheets = WecomDocument::selectSheets(m_metadata, m_snapshot.fromDate);
+    m_snapshot.sheets = WecomDocument::selectSheets(m_metadata, m_snapshot.fromDate, m_snapshot.selection);
     if (m_snapshot.sheets.isEmpty()) { finish(); return; }
     readNextSheet();
 }

@@ -30,9 +30,16 @@
     <ClCompile Include="authservice.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="accountsetservice.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="backupservice.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="toolcommands.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\LocalToolEndpoint.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\WecomBrowser.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\WecomDocumentCatalog.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\WecomDocumentData.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\WecomDocumentReader.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\WecomSessionStore.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\access2003converter.cpp"><Filter>Shared Files</Filter></ClCompile>
+    <ClCompile Include="..\QtWidgetsApplication1\Common\Jet3Recovery.cpp"><Filter>Shared Files</Filter></ClCompile>
     <ClCompile Include="..\QtWidgetsApplication1\Common\logger.cpp"><Filter>Shared Files</Filter></ClCompile>
-    <ClCompile Include="..\QtWidgetsApplication1\Common\importpackagehistory.cpp"><Filter>Shared Files</Filter></ClCompile>
-    <ClCompile Include="..\QtWidgetsApplication1\Common\importpackageuploader.cpp"><Filter>Shared Files</Filter></ClCompile>
     <ClCompile Include="..\QtWidgetsApplication1\httprequesthelper.cpp"><Filter>Shared Files</Filter></ClCompile>
     <ClCompile Include="..\QtWidgetsApplication1\lemoncofighelper.cpp"><Filter>Shared Files</Filter></ClCompile>
     <ClInclude Include="cliarguments.h"><Filter>Header Files</Filter></ClInclude>
@@ -43,7 +50,15 @@
     <ClInclude Include="authservice.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="accountsetservice.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="backupservice.h"><Filter>Header Files</Filter></ClInclude>
-    <ClInclude Include="..\QtWidgetsApplication1\Common\importpackagehistory.h"><Filter>Shared Files</Filter></ClInclude>
+    <ClInclude Include="toolcommands.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\LocalToolEndpoint.h"><Filter>Shared Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\WecomDocumentCatalog.h"><Filter>Shared Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\WecomDocumentData.h"><Filter>Shared Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\WecomSessionStore.h"><Filter>Shared Files</Filter></ClInclude>
+    <QtMoc Include="..\QtWidgetsApplication1\Common\WecomBrowser.h"><Filter>Shared Files</Filter></QtMoc>
+    <QtMoc Include="..\QtWidgetsApplication1\Common\WecomDocumentReader.h"><Filter>Shared Files</Filter></QtMoc>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\access2003converter.h"><Filter>Shared Files</Filter></ClInclude>
+    <ClInclude Include="..\QtWidgetsApplication1\Common\Jet3Recovery.h"><Filter>Shared Files</Filter></ClInclude>
     <None Include="LemonWorkToolCli-Local.cmd"><Filter>Resource Files</Filter></None>
     <None Include="LemonWorkToolCli-Test.cmd"><Filter>Resource Files</Filter></None>
   </ItemGroup>

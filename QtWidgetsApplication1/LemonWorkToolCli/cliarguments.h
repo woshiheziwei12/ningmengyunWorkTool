@@ -2,6 +2,7 @@
 #define CLIARGUMENTS_H
 
 #include <QMap>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -16,10 +17,13 @@ public:
     bool has(const QString &name) const;
     QString value(const QString &name, const QString &defaultValue = QString()) const;
     QStringList values(const QString &name) const;
+    QStringList optionNames() const { return m_options.keys(); }
+    bool hasImplicitValue(const QString &name) const { return m_implicitOptions.contains(name); }
 
 private:
     QStringList m_positionals;
     QMap<QString, QStringList> m_options;
+    QSet<QString> m_implicitOptions;
 };
 
 #endif // CLIARGUMENTS_H

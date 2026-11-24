@@ -14,6 +14,7 @@ class RepairAccountSetWidget;
 class JsonQueryWidget;
 class WecomDocumentWidget;
 class WecomLocalServer;
+class LocalToolServer;
 class BrowserLoginBridge;
 class SubjectCodeConflictWidget;
 class SubjectCodeSeparatorWidget;
@@ -102,6 +103,7 @@ private:
     void showSubjectCodeConflict();
     void showSubjectCodeSeparator();
     void showImportPackageUpload();
+    void ensureImportPackageUpload();
     void showSubjectBalanceImport();
     void showAllowNullAaType();
     void showReferenceAccountCodeRepair();
@@ -124,6 +126,8 @@ private:
     JsonQueryWidget *m_pJsonQueryWidget;
     WecomDocumentWidget *m_pWecomDocumentWidget = nullptr;
     WecomLocalServer *m_wecomLocalServer = nullptr;
+    LocalToolServer *m_packageLocalServer = nullptr;
+    LocalToolServer *m_bakLocalServer = nullptr;
     BrowserLoginBridge *m_browserLoginBridge = nullptr;
     SubjectCodeConflictWidget *m_pSubjectCodeConflictWidget;
     SubjectCodeSeparatorWidget *m_pSubjectCodeSeparatorWidget;

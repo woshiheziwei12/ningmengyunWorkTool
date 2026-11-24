@@ -8,6 +8,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QMutex>
 #include <QSet>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -234,6 +235,11 @@ QString BakBackupRestorer::sourceVersionText(const BakBackupEntry& entry)
 }
 bool BakBackupRestorer::isRestorable(const BakBackupEntry& entry) { return eligibility(entry).isEmpty(); }
 
+bool BakBackupRestorer::isSupportedHeader(const QByteArray& header)
+{
+    return header.startsWith("TAPE") || header.startsWith("MSSQLBAK");
+}
+
 BakBackupBatch BakBackupRestorer::read(const QVector<T3SqlConnection>& candidates, const QString& source,
     const QString& stagingDirectory, const Cancel& cancel, const Progress& progress)
 {
@@ -270,7 +276,7 @@ BakBackupBatch BakBackupRestorer::read(const QVector<T3SqlConnection>& candidate
         if (!input.open(QIODevice::ReadOnly)) failed.readError = input.errorString();
         else {
             const auto header = input.peek(8); input.close();
-            if (!header.startsWith("TAPE") && !header.startsWith("MSSQLBAK"))
+            if (!isSupportedHeader(header))
                 failed.readError = QString::fromUtf8(u8"不是 SQL Server 原生备份文件。");
         }
         QStringList errors;
@@ -371,6 +377,9 @@ T3RestoreResult BakBackupRestorer::restore(const T3SqlConnection& options, const
     const QVector<BakRestoreSelection>& selections, const QString& dataDirectory, const QString& logDirectory,
     const Cancel& cancel, const Progress& progress)
 {
+    // GUI and CLI can reach this worker together. Finish the earlier write before checking the next target name.
+    static QMutex restoreMutex;
+    QMutexLocker lock(&restoreMutex);
     T3RestoreResult result;
     const auto perform = [&]() {
         result.error = validateSelections(batch, selections); if (!result.error.isEmpty()) return;

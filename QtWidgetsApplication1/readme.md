@@ -7,7 +7,7 @@ Windows / Qt 桌面工具、命令行工具与 Chrome 扩展，提供账套备�
 | 目录 | 用途 |
 | --- | --- |
 | `QtWidgetsApplication1/` | Qt 桌面程序、公共模块、UI 和资源 |
-| `LemonWorkToolCli/` | 命令行客户端，功能规划见 `CLI_IMPLEMENTATION_PLAN.md` |
+| `LemonWorkToolCli/` | 命令行客户端，使用方式见 [命令 API 手册](docs/command-api.md) |
 | `LemonChromeExtension/` | 唯一维护的 Chrome 扩展源码、打包脚本及离线测试 |
 | `RemoteTransferAgent/` | SQL Server 共享目录中的远端传输助手 |
 | `Tests/` | C++、界面与辅助脚本测试；数据库实测需显式提供样本 |

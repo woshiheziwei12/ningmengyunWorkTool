@@ -36,6 +36,8 @@ public:
     using Progress = T3BackupRestorer::Progress;
     // Directory scans include subdirectories, without following symbolic links.
     static QStringList discoverFiles(const QString& source, QString* error);
+    // Identifies the native SQL Server backup headers used by the BAK reader.
+    static bool isSupportedHeader(const QByteArray& header);
     static QString sourceVersionText(const BakBackupEntry& entry);
     static bool isRestorable(const BakBackupEntry& entry);
     static BakBackupBatch read(const QVector<T3SqlConnection>& candidates, const QString& source,

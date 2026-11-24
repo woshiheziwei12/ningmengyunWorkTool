@@ -546,6 +546,8 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
 
     QNetworkRequest networkRequest;
     networkRequest.setUrl(importUrl);
+    // Keep credentials and the multipart body on the chosen importer.
+    networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     CHttpRequestHelper::configureSsl(networkRequest);
     CHttpRequestHelper::setInternalSessionHeader(networkRequest);
     networkRequest.setRawHeader("Authorization", (QStringLiteral("Bearer ") + request.accessToken).toUtf8());
@@ -597,6 +599,7 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
 
     if (timedOut)
     {
+        result.acceptanceUnknown = true;
         result.errorMessage = QStringLiteral("上传超时（%1 秒）").arg(request.timeoutMs / 1000);
         delete reply;
         return result;
@@ -613,6 +616,7 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
 
     if (reply->error() != QNetworkReply::NoError)
     {
+        result.acceptanceUnknown = result.httpStatus == 0 || result.httpStatus >= 500;
         result.errorMessage = QStringLiteral("网络错误：") + reply->errorString();
         delete reply;
         return result;
@@ -622,6 +626,7 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
 
     if (result.httpStatus != 200)
     {
+        result.acceptanceUnknown = result.httpStatus >= 500;
         result.errorMessage = QStringLiteral("接口返回 HTTP %1：%2")
             .arg(result.httpStatus)
             .arg(QString::fromUtf8(responseData).left(500));
@@ -632,6 +637,7 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
     const QJsonDocument document = QJsonDocument::fromJson(responseData, &jsonError);
     if (jsonError.error != QJsonParseError::NoError || !document.isObject())
     {
+        result.acceptanceUnknown = true;
         result.errorMessage = QStringLiteral("解析接口返回值失败：") + jsonError.errorString();
         return result;
     }
@@ -639,23 +645,31 @@ ImportPackageUploadResult ImportPackageUploader::upload(const ImportPackageUploa
     const QJsonObject obj = document.object();
     result.responseCode = obj.value("Code").toInt(-1);
     const QString resMessage = obj.value("Message").toString();
-    result.importId = obj.value("Data").toString();
+    result.importId = obj.value("Data").toString().trimmed();
 
     if (result.responseCode != 0)
     {
+        result.acceptanceUnknown = !obj.value("Code").isDouble();
         result.errorMessage = resMessage.isEmpty()
             ? QStringLiteral("服务端返回错误 Code=%1").arg(result.responseCode)
             : resMessage;
         return result;
     }
+    if (result.importId.isEmpty()) {
+        result.acceptanceUnknown = true;
+        result.errorMessage = QStringLiteral("导账服务未返回任务 ID，请先核对导入记录。");
+        return result;
+    }
 
     result.ok = true;
     result.logs.append(QStringLiteral("上传成功，importId：") + result.importId);
-    ImportPackageHistory::recordSuccessfulUpload(
+    result.historySaved = ImportPackageHistory::recordSuccessfulUpload(
         request.zipFilePath,
         result.importId,
         request.serviceId,
-        importerApiHost);
+        importerApiHost,
+        request.environment,
+        request.userId);
     AppLogger::operation(QStringLiteral("账套压缩包上传成功 asId=%1 asName=%2 importId=%3")
         .arg(request.asId, asName, result.importId));
     return result;

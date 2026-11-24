@@ -4,6 +4,16 @@
         {
             "name": "2026-运营支持组项目进度表",
             "url": "https://doc.weixin.qq.com/sheet/e3_ARwAqwY-AAkCNmen80OXPQyS100NJ"
+        },
+        {
+            "name": "2026-运营支持组站会总结表",
+            "url": "https://doc.weixin.qq.com/sheet/e3_ARwAqwY-AAkCNsNndJmHGR5K578aV",
+            "sheetSelection": "latest-date"
+        },
+        {
+            "name": "2026-记账系统项目进度表",
+            "url": "https://doc.weixin.qq.com/sheet/e3_AKcA1gZhAA0CNHYIuso0NR2O0Y8CZ",
+            "sheetSelection": "from-date-in-name"
         }
     ]
 }

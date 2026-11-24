@@ -18,6 +18,14 @@
     <QtMoc Include="Common\WecomDocumentReader.h" />
     <QtMoc Include="Common\WecomLocalServer.h" />
     <ClCompile Include="Common\WecomLocalServer.cpp" />
+    <ClCompile Include="Common\LocalToolEndpoint.cpp" />
+    <ClInclude Include="Common\LocalToolEndpoint.h" />
+    <ClCompile Include="Common\LocalToolServer.cpp" />
+    <ClInclude Include="Common\LocalToolServer.h" />
+    <ClCompile Include="Common\BakLocalCommands.cpp" />
+    <ClInclude Include="Common\BakLocalCommands.h" />
+    <ClCompile Include="Common\PlatformBackupRestore.cpp" />
+    <ClInclude Include="Common\PlatformBackupRestore.h" />
     <ClInclude Include="Common\WecomDocumentData.h" />
     <ClInclude Include="Common\WecomDocumentCatalog.h" />
     <ClCompile Include="Common\WecomDocumentCatalog.cpp" />
@@ -277,15 +285,7 @@
     <Copy SourceFiles="$(MSBuildProjectDirectory)\WecomDocuments.json" DestinationFolder="$(OutDir)"
           Condition="!Exists('$(OutDir)WecomDocuments.json')" />
   </Target>
-  <Target Name="BuildJetRecovery" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' and '$(BridgeTests)'!='true' and '$(CredentialTests)'!='true'">
-    <PropertyGroup>
-      <RecoveryOutDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))</RecoveryOutDir>
-      <RecoveryIntDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntDir)', 'JetRecovery'))</RecoveryIntDir>
-    </PropertyGroup>
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\Tools\JetRecovery\LemonJetRecovery.vcxproj" Targets="Build" BuildInParallel="false"
-      RemoveProperties="ForceImportBeforeCppTargets;AccessConversionTests;SmokeTest;BridgeTests;CredentialTests"
-      Properties="Configuration=Release;Platform=Win32;OutDir=$(RecoveryOutDir);IntDir=$(RecoveryIntDir);QtIntDir=$(RecoveryIntDir)qt\;TLogLocation=$(RecoveryIntDir)tlog\;MSBuildProjectExtensionsPath=$(RecoveryIntDir);TargetName=LemonJetRecovery" />
-  </Target>
+  <Import Project="..\Tools\JetRecovery\BuildJetRecovery.targets" />
   <Target Name="DeployLocalSqlConfiguration" AfterTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\SqlServer211.local.json') and '$(CopyLocalSqlConfiguration)' == 'true'">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\SqlServer211.local.json" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>

@@ -17,7 +17,10 @@ class WecomDocumentWidget : public QWidget
 public:
     explicit WecomDocumentWidget(QWidget *parent = nullptr, const QString &catalogPath = {});
     ~WecomDocumentWidget() override;
-    void readForAssistant(const QDate &fromDate, WecomLocalServer::Reply reply);
+    // Lists saved document IDs and names without exposing their share parameters.
+    QJsonObject assistantDocuments() const;
+    // Reads the pinned document, a saved document, or a temporary URL.
+    void readForAssistant(const QDate &fromDate, const QString &documentId, const QUrl &url, WecomLocalServer::Reply reply);
     void setAssistantStatus(const QString &message);
 signals:
     void backToMain();
@@ -29,6 +32,7 @@ private:
     // Adds an in-memory choice and starts loading it using the regular reader.
     void accessTemporaryDocument(const QUrl &url);
     QUrl selectedDocumentUrl() const;
+    WecomDocument::Document selectedDocument() const;
     void clearResults();
     void showSnapshot(const WecomDocument::Snapshot &snapshot);
     void exportJson();

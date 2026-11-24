@@ -22,6 +22,10 @@
 #include "Common/globaldata.h"
 #include "Common/logger.h"
 #include "Common/BrowserLoginBridge.h"
+#include "Common/LemonWorkToolPaths.h"
+#include "Common/LocalToolEndpoint.h"
+#include "Common/LocalToolServer.h"
+#include "Common/BakLocalCommands.h"
 #include <QFile>
 #include <QStackedWidget>
 #include <QMessageBox>
@@ -40,6 +44,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QStyle>
+#include <QStandardPaths>
 #include <QWindow>
 #include <QAbstractItemView>
 #include <QHeaderView>
@@ -328,19 +333,57 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     });
     updateResponsiveChrome();
     showFunctionSelect();
-    m_wecomLocalServer = new WecomLocalServer([this](const QDate &date, WecomLocalServer::Reply reply) {
+    m_wecomLocalServer = new WecomLocalServer([this](const QDate &date, const QString &documentId, const QUrl &url,
+                                                  WecomLocalServer::Reply reply) {
         if (!isEnabled() || QApplication::activeModalWidget()) {
             reply(WecomLocalServer::error("busy", QStringLiteral("工具正在切换环境或等待对话框操作，请稍后重试。"))); return;
         }
         ensureWecomDocument();
-        m_pWecomDocumentWidget->readForAssistant(date, std::move(reply));
+        m_pWecomDocumentWidget->readForAssistant(date, documentId, url, std::move(reply));
+    }, [this]() {
+        if (!isEnabled() || QApplication::activeModalWidget())
+            return WecomLocalServer::error("busy", QStringLiteral("工具正在切换环境或等待对话框操作，请稍后重试。"));
+        ensureWecomDocument();
+        return m_pWecomDocumentWidget->assistantDocuments();
     }, this);
     m_wecomLocalServer->start();
+    m_packageLocalServer = new LocalToolServer([this](const QJsonObject &request, LocalToolServer::Reply reply) {
+        if (!isEnabled() || QApplication::activeModalWidget()) {
+            reply(LocalToolServer::error("busy", QStringLiteral("工作助手正在切换环境或等待对话框操作。")));
+            return;
+        }
+        ensureImportPackageUpload();
+        m_pImportPackageUploadWidget->handleLocalRequest(request, std::move(reply));
+    }, 600000, LocalToolServer::error("read_timeout",
+        QStringLiteral("等待工作助手响应超时，请先查看导入任务记录。")), this);
+    QString packageEndpoint = LocalToolEndpoint::name("Packages");
+    if (!packageEndpoint.isEmpty() && QStandardPaths::isTestModeEnabled())
+        packageEndpoint += ".test." + QString::number(QCoreApplication::applicationPid());
+    const QString dataDirectory = LemonWorkToolPaths::userDataDirectory();
+    if (!dataDirectory.isEmpty() && !m_packageLocalServer->start(packageEndpoint, QDir(dataDirectory).filePath("DesktopBridge"))) {
+        AppLogger::warning(m_packageLocalServer->errorText());
+    }
+    auto *bakCommands = new BakLocalCommands(this);
+    m_bakLocalServer = new LocalToolServer([this, bakCommands](const QJsonObject &request, LocalToolServer::Reply reply) {
+        if (request.value("action") != QJsonValue("status") && (!isEnabled() || QApplication::activeModalWidget())) {
+            reply(LocalToolServer::error("busy", QStringLiteral("工作助手正在切换环境或等待对话框操作。")));
+            return;
+        }
+        bakCommands->dispatch(request, std::move(reply));
+    }, 600000, LocalToolServer::error("read_timeout", QStringLiteral("等待工作助手读取备份超时。")), this);
+    QString bakEndpoint = LocalToolEndpoint::name("Bak");
+    if (!bakEndpoint.isEmpty() && QStandardPaths::isTestModeEnabled())
+        bakEndpoint += ".test." + QString::number(QCoreApplication::applicationPid());
+    if (!dataDirectory.isEmpty() && !m_bakLocalServer->start(bakEndpoint, QDir(dataDirectory).filePath("DesktopBridge"))) {
+        AppLogger::warning(m_bakLocalServer->errorText());
+    }
 }
 
 QtWidgetsApplication1::~QtWidgetsApplication1()
 {
     delete m_wecomLocalServer;
+    delete m_packageLocalServer;
+    delete m_bakLocalServer;
 }
 
 void QtWidgetsApplication1::resizeEvent(QResizeEvent *event)
@@ -667,7 +710,7 @@ void QtWidgetsApplication1::showJsonQuery()
 
 void QtWidgetsApplication1::showWecomDocument()
 {
-    updatePageHeader(QStringLiteral("企业微信文档读取"), QStringLiteral("扫码登录，获取今天及之后的工作表并导出 JSON"));
+    updatePageHeader(QStringLiteral("企业微信文档读取"), QStringLiteral("扫码登录，获取工作表并导出 JSON"));
     ensureWecomDocument();
     showToolPage(m_pWecomDocumentWidget);
 }
@@ -731,6 +774,13 @@ void QtWidgetsApplication1::showImportPackageUpload()
     AppLogger::operation(QStringLiteral("显示上传压缩包页面"));
     updatePageHeader(QStringLiteral("\u4e0a\u4f20\u4e13\u4e1a\u7248\u8d26\u5957"),
                      QStringLiteral("\u4e0a\u4f20\u6570\u636e\u5305\u5e76\u8ddf\u8e2a\u5bfc\u5165\u8fdb\u5ea6"));
+    ensureImportPackageUpload();
+    showToolPage(m_pImportPackageUploadWidget);
+    m_pImportPackageUploadWidget->reloadImportHistory();
+}
+
+void QtWidgetsApplication1::ensureImportPackageUpload()
+{
     if (!m_pImportPackageUploadWidget)
     {
         m_pImportPackageUploadWidget = new ImportPackageUploadWidget(m_pGlobalData, this);
@@ -738,8 +788,6 @@ void QtWidgetsApplication1::showImportPackageUpload()
         connect(m_pImportPackageUploadWidget, &ImportPackageUploadWidget::backToMain,
                 this, &QtWidgetsApplication1::onBackToMain);
     }
-    showToolPage(m_pImportPackageUploadWidget);
-    m_pImportPackageUploadWidget->reloadImportHistory();
 }
 
 void QtWidgetsApplication1::showAllowNullAaType()

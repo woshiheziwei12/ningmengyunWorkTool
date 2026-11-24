@@ -1,4 +1,5 @@
 #include "WecomBrowser.h"
+#include "LemonWorkToolPaths.h"
 #include "WecomSessionStore.h"
 #include "../ThirdParty/WebView2/include/WebView2.h"
 #include <wrl.h>
@@ -10,8 +11,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMap>
+#include <QLockFile>
 #include <QPointer>
-#include <QStandardPaths>
 #include <QTimer>
 #include <QUuid>
 #include <QResizeEvent>
@@ -97,17 +98,22 @@ struct WecomBrowser::Impl {
     QUrl pendingUrl;
     QString channel = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString profileDirectory;
+    std::unique_ptr<QLockFile> profileLock;
     int nextRequest = 0;
     QMap<int, Reply> replies;
 };
 
 WecomBrowser::WecomBrowser(QWidget *parent, const QString &profileDirectory) : QWidget(parent), d(new Impl)
 {
-    d->profileDirectory = profileDirectory.isEmpty()
-        ? QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/LemonCloud/LemonWorkTool/WecomWebView"
-        : profileDirectory;
+    d->profileDirectory = profileDirectory.isEmpty() ? defaultProfileDirectory() : profileDirectory;
     setAttribute(Qt::WA_NativeWindow);
     setMinimumSize(480, 420);
+}
+
+QString WecomBrowser::defaultProfileDirectory()
+{
+    const QString root = LemonWorkToolPaths::userDataDirectory();
+    return root.isEmpty() ? QString() : QDir(root).filePath("WecomWebView");
 }
 
 WecomBrowser::~WecomBrowser()
@@ -202,7 +208,18 @@ void WecomBrowser::initialize()
     auto create = d->loader ? reinterpret_cast<CreateEnvironment>(GetProcAddress(d->loader, "CreateCoreWebView2EnvironmentWithOptions")) : nullptr;
     if (!create) { emit browserError(QStringLiteral("缺少 WebView2Loader.dll，请使用完整程序目录运行。")); return; }
     const QString profile = d->profileDirectory;
-    if (!QDir().mkpath(profile)) { emit browserError(QStringLiteral("无法创建企业微信登录配置目录。")); return; }
+    if (profile.isEmpty() || !QDir().mkpath(profile)) {
+        emit browserError(QStringLiteral("无法创建企业微信登录配置目录。")); return;
+    }
+    if (!d->profileLock) {
+        auto lock = std::make_unique<QLockFile>(QDir(profile).filePath("reader.lock"));
+        lock->setStaleLockTime(0);
+        if (!lock->tryLock()) {
+            emit browserError(QStringLiteral("企业微信浏览器配置正在使用或无法锁定，请等待其他读取任务退出后再试。"));
+            return;
+        }
+        d->profileLock = std::move(lock);
+    }
     d->initializing = true;
     QPointer<WecomBrowser> guard(this);
     const auto generation = d->generation;
@@ -336,7 +353,7 @@ void WecomBrowser::initialize()
 }
 
 bool WecomBrowser::hasSavedSession() const
-{ return QFileInfo::exists(QDir(d->profileDirectory).filePath("session.dat")); }
+{ return !d->profileDirectory.isEmpty() && QFileInfo::exists(QDir(d->profileDirectory).filePath("session.dat")); }
 
 void WecomBrowser::restoreSession()
 {
