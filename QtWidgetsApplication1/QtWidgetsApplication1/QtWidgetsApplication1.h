@@ -14,6 +14,7 @@ class RepairAccountSetWidget;
 class JsonQueryWidget;
 class WecomDocumentWidget;
 class WecomLocalServer;
+class LocalToolServer;
 class BrowserLoginBridge;
 class SubjectCodeConflictWidget;
 class SubjectCodeSeparatorWidget;
@@ -32,6 +33,7 @@ class QStackedWidget;
 class QPushButton;
 class QLabel;
 class QFrame;
+class QJsonObject;
 class QVBoxLayout;
 class QHBoxLayout;
 class QResizeEvent;
@@ -102,6 +104,7 @@ private:
     void showSubjectCodeConflict();
     void showSubjectCodeSeparator();
     void showImportPackageUpload();
+    void ensureImportPackageUpload();
     void showSubjectBalanceImport();
     void showAllowNullAaType();
     void showReferenceAccountCodeRepair();
@@ -112,6 +115,10 @@ private:
     void showDatabaseCleanup();
     void showBackupRestore(int softwareId = 0);
     void showVoucherGroupNumRepair();
+    // Returns the Cookie from the active workbench session.
+    QString activeNingMengCookie() const;
+    // Serves read-only Cookie requests from the current Windows user's CLI.
+    QJsonObject readLocalAuthCookie(const QJsonObject &request) const;
 
     Ui::QtWidgetsApplication1Class ui;
     GlobalData *m_pGlobalData;
@@ -124,6 +131,9 @@ private:
     JsonQueryWidget *m_pJsonQueryWidget;
     WecomDocumentWidget *m_pWecomDocumentWidget = nullptr;
     WecomLocalServer *m_wecomLocalServer = nullptr;
+    LocalToolServer *m_packageLocalServer = nullptr;
+    LocalToolServer *m_bakLocalServer = nullptr;
+    LocalToolServer *m_authLocalServer = nullptr;
     BrowserLoginBridge *m_browserLoginBridge = nullptr;
     SubjectCodeConflictWidget *m_pSubjectCodeConflictWidget;
     SubjectCodeSeparatorWidget *m_pSubjectCodeSeparatorWidget;

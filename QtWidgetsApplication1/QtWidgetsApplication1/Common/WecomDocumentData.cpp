@@ -216,6 +216,14 @@ bool validateUrl(const QUrl &url, QString *error)
     if (!valid && error) *error = QStringLiteral("请输入 https://doc.weixin.qq.com/sheet/ 开头的企业微信表格链接。");
     return valid;
 }
+QDate fromDate(const QJsonValue &value)
+{
+    const auto today = QDate::currentDate();
+    if (value.isUndefined()) return today;
+    const QString input = value.toString();
+    const auto date = QDate::fromString(input, Qt::ISODate);
+    return date >= today && date.toString(Qt::ISODate) == input ? date : QDate();
+}
 QDate sheetDate(const QString &name, int year)
 {
     static const QRegularExpression shortDate("^(\\d{1,2})-(\\d{1,2})$");
@@ -225,7 +233,86 @@ QDate sheetDate(const QString &name, int year)
     const auto partial = shortDate.match(name.trimmed());
     return partial.hasMatch() ? QDate(year, partial.captured(1).toInt(), partial.captured(2).toInt()) : QDate();
 }
-bool parseMetadata(const QJsonObject &response, Metadata *metadata, QString *error)
+
+// Stand-up tabs may use dots, slashes or Chinese dates within the title.
+static QDate standupSheetDate(const QString &name, int year)
+{
+    static const QRegularExpression datePattern(QStringLiteral(
+        "(?<![\\d./年月-])(?:(\\d{4})[-./年])?(\\d{1,2})[-./月](\\d{1,2})(?!\\d)"));
+    const auto date = datePattern.match(name);
+    if (!date.hasMatch()) return {};
+    const int tabYear = date.captured(1).isEmpty() ? year : date.captured(1).toInt();
+    return QDate(tabYear, date.captured(2).toInt(), date.captured(3).toInt());
+}
+
+// Accepts dates in descriptive names, including labels separated by a hyphen.
+static QDate dateInProgressTabName(const QString &name, int year)
+{
+    static const QRegularExpression pattern(QStringLiteral(
+        "(?<![0-9])(?<![0-9][./])(?:(20[0-9]{2})[-./年])?([0-9]{1,2})[-./月]([0-9]{1,2})(?![0-9]|[./][0-9])"));
+    auto dates = pattern.globalMatch(name);
+    while (dates.hasNext()) {
+        const auto match = dates.next();
+        const int tabYear = match.captured(1).isEmpty() ? year : match.captured(1).toInt();
+        const QDate date(tabYear, match.captured(2).toInt(), match.captured(3).toInt());
+        if (date.isValid()) return date;
+    }
+    return {};
+}
+
+QString sheetSelectionKey(SheetSelection selection)
+{
+    if (selection == SheetSelection::LatestDate) return QStringLiteral("latest-date");
+    if (selection == SheetSelection::FromDateInName) return QStringLiteral("from-date-in-name");
+    if (selection == SheetSelection::All) return QStringLiteral("all");
+    return QStringLiteral("from-date");
+}
+
+// Keeps the lower bound inclusive and sorts by the parsed date.
+static QVector<Sheet> sheetsFromDate(const QVector<Sheet> &sheets, const QDate &fromDate)
+{
+    QVector<Sheet> result;
+    for (const auto &sheet : sheets)
+        if (sheet.date.isValid() && sheet.date >= fromDate) result.append(sheet);
+    std::stable_sort(result.begin(), result.end(), [](const Sheet &a, const Sheet &b) { return a.date < b.date; });
+    return result;
+}
+
+// Returns only the greatest tab date, with directory order breaking a tie.
+static QVector<Sheet> newestDatedSheet(const QVector<Sheet> &sheets, const QDate &)
+{
+    const Sheet *latest = nullptr;
+    for (const auto &sheet : sheets) {
+        if (sheet.date.isValid() && (!latest || sheet.date >= latest->date)) latest = &sheet;
+    }
+    return latest ? QVector<Sheet>{*latest} : QVector<Sheet>{};
+}
+
+// Uses the order provided by the workbook directory.
+static QVector<Sheet> allSheets(const QVector<Sheet> &sheets, const QDate &)
+{
+    return sheets;
+}
+
+// Pairs each document's tab-date parser and sheet selector in one place.
+struct SheetSelectionStrategy {
+    QDate (*dateFromName)(const QString &, int);
+    QVector<Sheet> (*select)(const QVector<Sheet> &, const QDate &);
+    bool requiresOnlineYear;
+};
+
+static SheetSelectionStrategy strategyFor(SheetSelection selection)
+{
+    if (selection == SheetSelection::LatestDate)
+        return {standupSheetDate, newestDatedSheet, false};
+    if (selection == SheetSelection::FromDateInName)
+        return {dateInProgressTabName, sheetsFromDate, false};
+    if (selection == SheetSelection::All)
+        return {nullptr, allSheets, false};
+    return {sheetDate, sheetsFromDate, true};
+}
+
+bool parseMetadata(const QJsonObject &response, Metadata *metadata, QString *error, const Document &document)
 {
     *metadata = Metadata();
     const auto client = response.value("clientVars").toObject();
@@ -237,7 +324,11 @@ bool parseMetadata(const QJsonObject &response, Metadata *metadata, QString *err
     static const QRegularExpression yearPattern("^\\s*(20\\d{2})(?:\\D|$)");
     const auto year = yearPattern.match(metadata->title);
     metadata->year = year.captured(1).toInt();
-    if (collab.isEmpty() || metadata->padId.isEmpty() || revision.isUndefined() || !year.hasMatch() || !collab.value("header").isArray()) {
+    const auto strategy = strategyFor(document.selection);
+    if (!strategy.requiresOnlineYear && !year.hasMatch())
+        metadata->year = yearPattern.match(document.name).captured(1).toInt();
+    if (collab.isEmpty() || metadata->padId.isEmpty() || revision.isUndefined() || (strategy.requiresOnlineYear && !year.hasMatch())
+        || !collab.value("header").isArray()) {
         if (error) *error = QStringLiteral("无法获取文档目录或年份，请确认已扫码登录且有权查看该文档。"); return false;
     }
     QSet<QString> ids;
@@ -248,18 +339,16 @@ bool parseMetadata(const QJsonObject &response, Metadata *metadata, QString *err
             if (sheet.id.isEmpty() || sheet.name.isEmpty() || ids.contains(sheet.id)) {
                 if (error) *error = QStringLiteral("文档目录格式异常或存在重复工作表。"); return false;
             }
-            ids.insert(sheet.id); sheet.date = sheetDate(sheet.name, metadata->year);
+            ids.insert(sheet.id);
+            if (strategy.dateFromName) sheet.date = strategy.dateFromName(sheet.name, metadata->year);
             metadata->sheets.append(sheet);
         }
     }
     return true;
 }
-QVector<Sheet> selectSheets(const Metadata &metadata, const QDate &fromDate)
+QVector<Sheet> selectSheets(const Metadata &metadata, const QDate &fromDate, SheetSelection selection)
 {
-    QVector<Sheet> result;
-    for (const auto &sheet : metadata.sheets) if (sheet.date.isValid() && sheet.date >= fromDate) result.append(sheet);
-    std::stable_sort(result.begin(), result.end(), [](const Sheet &a, const Sheet &b) { return a.date < b.date; });
-    return result;
+    return strategyFor(selection).select(metadata.sheets, fromDate);
 }
 bool parseSheet(const QJsonObject &response, Sheet *sheet, QString *error)
 {
@@ -331,8 +420,12 @@ QJsonObject Snapshot::toJson() const
             {"error", sheet.error}, {"cells", cells}});
     }
     // Share codes, request URLs, browser state and authentication tokens never enter exports.
-    return {{"schemaVersion", 1}, {"documentId", documentId}, {"title", title}, {"fromDate", fromDate.toString(Qt::ISODate)},
+    QJsonObject snapshot{{"schemaVersion", 1}, {"documentId", documentId}, {"title", title},
         {"fetchedAt", fetchedAt.toUTC().toString(Qt::ISODate)}, {"coordinateBase", 0}, {"complete", complete},
         {"cancelled", cancelled}, {"sheets", tables}};
+    if (selection != SheetSelection::FromDate) snapshot["sheetSelection"] = sheetSelectionKey(selection);
+    if (selection == SheetSelection::FromDate || selection == SheetSelection::FromDateInName)
+        snapshot["fromDate"] = fromDate.toString(Qt::ISODate);
+    return snapshot;
 }
 }

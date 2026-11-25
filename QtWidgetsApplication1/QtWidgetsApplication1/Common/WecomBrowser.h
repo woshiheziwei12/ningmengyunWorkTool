@@ -15,6 +15,8 @@ public:
     using SessionReply = std::function<void(const QString &error)>;
     explicit WecomBrowser(QWidget *parent = nullptr, const QString &profileDirectory = QString());
     ~WecomBrowser() override;
+    // GUI and standalone CLI share the current Windows user's WebView2 profile.
+    static QString defaultProfileDirectory();
     virtual void navigate(const QUrl &url);
     virtual void get(const QUrl &url, Reply reply);
     virtual void cancelRequests();

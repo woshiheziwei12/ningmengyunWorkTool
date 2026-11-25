@@ -13,6 +13,8 @@
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomBrowser.cpp" />
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomSessionStore.cpp" />
     <ClCompile Include="$(MSBuildProjectDirectory)\Common\WecomLocalServer.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\LocalToolEndpoint.cpp" />
+    <ClCompile Include="$(MSBuildProjectDirectory)\Common\LocalToolServer.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)WecomLocalServerTests.cpp">
       <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>

@@ -1,5 +1,7 @@
 # Lemon Work Tool CLI 版本完整实施计划
 
+本文记录初始设计。已交付命令的参数和运行前提见[命令 API 手册](docs/command-api.md)。
+
 ## 目标
 
 在保留现有 Qt Widgets 图形界面的同时，新增一个独立命令行程序 `LemonWorkToolCli.exe`。CLI 必须覆盖当前软件已有入口和待实现入口，并把登录也作为一等命令提供。
@@ -608,6 +610,8 @@ LemonWorkToolCli.exe accountsets backup --all --out D:\backup --parallel 3 --pol
 ### 压缩包上传
 
 #### `packages upload`
+
+以下示例是早期设计。当前上传使用后台工作台的登录会话与套餐，按 `--http-env` 明确环境。参数和查询方式见[专业版账套 ZIP 上传](docs/command-api.md#专业版账套-zip-上传)。
 
 对应 GUI “上传压缩包专业版”，基于现有 `ImportPackageUploader`。
 

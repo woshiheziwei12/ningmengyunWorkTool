@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSet>
+#include <QTemporaryDir>
 
 #include <atomic>
 #include <chrono>
@@ -660,25 +661,34 @@ Access2003BatchResult Access2003Converter::convertFiles(const QStringList &sourc
                     continue;
                 }
             }
-            QFile::remove(item.destinationPath);
+            QTemporaryDir staging(outputDir.filePath(".access-conversion-XXXXXX"));
+            if (!staging.isValid())
+            {
+                item.errorMessage = QStringLiteral("无法创建转换暂存目录");
+                batchResult.items.append(item);
+                continue;
+            }
+            const QString stagedFile = staging.filePath(QFileInfo(item.destinationPath).fileName());
             AccessPasswordDialogAutomation passwordAutomation(effectivePassword);
             passwordAutomation.setTargetProcessId(accessProcessId);
             passwordAutomation.start();
-            item.success = access.convert(item.sourcePath, item.destinationPath, &item.errorMessage);
+            item.success = access.convert(item.sourcePath, stagedFile, &item.errorMessage);
             passwordAutomation.stop();
             if (passwordAutomation.passwordRejected())
             {
                 item.success = false;
                 item.errorMessage = QStringLiteral("Access 未接受数据库密码或重复要求输入密码，已取消此文件转换。请确认数据库密码后重试。");
             }
-            if (item.success && (!QFileInfo::exists(item.destinationPath)
-                                 || QFileInfo(item.destinationPath).size() <= 0))
+            if (item.success && QFileInfo(stagedFile).size() <= 0)
             {
                 item.success = false;
                 item.errorMessage = QStringLiteral("Access 未生成有效的目标文件");
             }
-            if (!item.success)
-                QFile::remove(item.destinationPath);
+            if (item.success && !QFile::rename(stagedFile, item.destinationPath))
+            {
+                item.success = false;
+                item.errorMessage = QStringLiteral("无法保存转换结果，目标文件可能已存在");
+            }
         }
 
         if (item.success)

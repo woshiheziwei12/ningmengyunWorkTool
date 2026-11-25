@@ -44,18 +44,31 @@ void runWecomLocalServerTests(const QString &clientScript)
 {
     QTemporaryDir directory; check(directory.isValid(),"isolated lock directory");
     const QString name="LemonWorkTool.Wecom.test."+QUuid::createUuid().toString(QUuid::WithoutBraces);
-    QVector<WecomLocalServer::Reply> pending; QDate requested; int reads=0;
-    WecomLocalServer server([&](const QDate &date, WecomLocalServer::Reply reply) { requested=date; ++reads; pending.append(reply); });
+    QVector<WecomLocalServer::Reply> pending; QDate requested; QString requestedId; QUrl requestedUrl; int reads=0;
+    WecomLocalServer server([&](const QDate &date, const QString &documentId, const QUrl &url, WecomLocalServer::Reply reply) {
+        requested=date; requestedId=documentId; requestedUrl=url; ++reads; pending.append(reply);
+    }, []() {
+        return WecomLocalServer::success({{"documents", QJsonArray{QJsonObject{{"id","configured"},{"name",QStringLiteral("测试表格")}}}}});
+    });
     check(server.start(name,directory.path()),"start service");
-    WecomLocalServer duplicate([](const QDate &,WecomLocalServer::Reply){});
+    WecomLocalServer duplicate([](const QDate &,const QString &,const QUrl &,WecomLocalServer::Reply){}, {});
     check(!duplicate.start(name,directory.path()),"second instance cannot steal or share endpoint");
     auto roundtrip=[&](const QByteArray &body) { QLocalSocket socket; send(socket,name,body); return receive(socket); };
     auto status=roundtrip(request("status"));
     check(status.value("ok").toBool() && status.value("data").toObject().value("documentId").toString()==WecomDocument::documentId() && reads==0,"status does not trigger login or read");
+    auto documents=roundtrip(request("documents"));
+    check(documents.value("data").toObject().value("documents").toArray().first().toObject().value("id")=="configured" && reads==0,
+          "list configured documents without reading");
     check(code(roundtrip("bad json\n"))=="invalid_request","malformed JSON");
     check(code(roundtrip("{\"protocolVersion\":2,\"action\":\"read\"}\n"))=="unsupported_version","protocol version");
     check(code(roundtrip(request("delete")))=="unsupported_action","no document mutations");
     check(code(roundtrip(request("read",{{"url","https://example.test"}})))=="invalid_request","no arbitrary document or URL override");
+    check(code(roundtrip(request("read_url",{{"url","https://example.test/sheet/untrusted"}})))=="invalid_url",
+        "manual URL only accepts the official spreadsheet host");
+    check(code(roundtrip(request("read_url",{{"url","https://doc.weixin.qq.com/doc/invalid"}})))=="invalid_url",
+        "manual URL rejects non-sheet documents");
+    check(code(roundtrip(request("read",{{"documentId","configured"}})))=="invalid_request","legacy read cannot select a different document");
+    check(code(roundtrip(request("read_document",{{"documentId","https://example.test"}})))=="invalid_document","selected read rejects a URL");
     check(code(roundtrip(request("read",{{"fromDate",QDate::currentDate().addDays(-1).toString(Qt::ISODate)}})))=="invalid_date","no historical reads");
     check(code(roundtrip(request("read",{{"fromDate","not-a-date"}})))=="invalid_date","strict date input");
     check(code(roundtrip(QByteArray(8193,'x')))=="invalid_request","bounded request size");
@@ -64,7 +77,7 @@ void runWecomLocalServerTests(const QString &clientScript)
     QLocalSocket fragmented; send(fragmented,name,"{\"protocolVersion\":1,");
     fragmented.write("\"action\":\"read\"}\n"); fragmented.flush();
     check(until([&](){return pending.size()==1;}),"fragmented read dispatched once");
-    check(requested==QDate::currentDate() && server.property("sessionBusyWecomBridge").toBool(),"today default and busy guard");
+    check(requested==QDate::currentDate() && requestedId.isEmpty() && server.property("sessionBusyWecomBridge").toBool(),"today and pinned document defaults and busy guard");
     check(code(roundtrip(request("read")))=="busy" && reads==1,"concurrent request rejected");
     WecomDocument::Snapshot snapshot; snapshot.fromDate=requested; snapshot.fetchedAt=QDateTime::currentDateTimeUtc();
     WecomDocument::Sheet sheet; sheet.id="test"; sheet.name=QStringLiteral("合成中文数据"); sheet.error="simulated partial failure"; snapshot.sheets.append(sheet);
@@ -73,6 +86,18 @@ void runWecomLocalServerTests(const QString &clientScript)
     check(result.value("ok").toBool() && !result.value("data").toObject().value("complete").toBool(),"partial snapshot retains incomplete flag");
     check(!server.property("sessionBusyWecomBridge").toBool(),"busy clears after completion");
     first(WecomLocalServer::error("late","ignored"));
+
+    QLocalSocket selected; send(selected,name,request("read_document",{{"documentId","configured"}}));
+    check(until([&](){return pending.size()==1;}) && requestedId=="configured","dispatch selected document ID");
+    pending.takeFirst()(WecomLocalServer::success({{"documentId",requestedId}}));
+    check(receive(selected).value("data").toObject().value("documentId")=="configured","reply identifies selected document");
+
+    const QString manualUrl = "https://doc.weixin.qq.com/sheet/new_sheet?scode=mock-share&tab=one";
+    QLocalSocket manual; send(manual,name,request("read_url",{{"url",manualUrl}}));
+    check(until([&](){return pending.size()==1;}) && requestedId.isEmpty() && requestedUrl == QUrl(manualUrl),
+        "manual read passes the full validated link to the shared reader");
+    pending.takeFirst()(WecomLocalServer::success({{"documentId",WecomDocument::documentIdFromUrl(requestedUrl)}}));
+    check(receive(manual).value("data").toObject().value("documentId")=="new_sheet","manual read response identifies the document");
 
     QLocalSocket dropped; send(dropped,name,request("read")); check(until([&](){return pending.size()==1;}),"next fresh read");
     dropped.abort(); QCoreApplication::processEvents();
@@ -88,10 +113,11 @@ void runWecomLocalServerTests(const QString &clientScript)
     if (!clientScript.isEmpty()) {
         QString realName=WecomLocalServer::defaultServerName();
         realName.remove(".test."+QString::number(QCoreApplication::applicationPid()));
-        WecomLocalServer scripted([&](const QDate &date, WecomLocalServer::Reply reply) {
+        WecomLocalServer scripted([&](const QDate &date, const QString &documentId, const QUrl &url, WecomLocalServer::Reply reply) {
+            check(documentId.isEmpty() && url.isEmpty(),"PowerShell keeps pinned document");
             reply(WecomLocalServer::success({{"fromDate",date.toString(Qt::ISODate)}, {"text",QStringLiteral("中文内容与链接")},
                 {"padding",QString(12000,'x')}, {"links",QJsonArray{"https://example.test/item"}}}));
-        });
+        }, {});
         // Never bind a live tool's default endpoint. The test caller gets a distinct Windows user SID
         // suffix via a test-only script copy; the production script exposes no endpoint override.
         const QString scriptName=realName+".testclient."+QString::number(QCoreApplication::applicationPid());

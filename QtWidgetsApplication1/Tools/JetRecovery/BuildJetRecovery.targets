@@ -1,0 +1,14 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="BuildJetRecovery" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' and '$(BridgeTests)'!='true' and '$(CredentialTests)'!='true'">
+    <PropertyGroup>
+      <RecoveryOutDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))</RecoveryOutDir>
+      <RecoveryIntDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntDir)', 'JetRecovery'))</RecoveryIntDir>
+      <RecoveryBuildDir>$(RecoveryIntDir)bin\</RecoveryBuildDir>
+    </PropertyGroup>
+    <MSBuild Projects="$(MSBuildThisFileDirectory)LemonJetRecovery.vcxproj" Targets="Build" BuildInParallel="false"
+      RemoveProperties="ForceImportBeforeCppTargets;AccessConversionTests;SmokeTest;BridgeTests;CredentialTests"
+      Properties="Configuration=Release;Platform=Win32;OutDir=$(RecoveryBuildDir);IntDir=$(RecoveryIntDir);QtIntDir=$(RecoveryIntDir)qt\;TLogLocation=$(RecoveryIntDir)tlog\;MSBuildProjectExtensionsPath=$(RecoveryIntDir);TargetName=LemonJetRecovery" />
+    <Copy SourceFiles="$(RecoveryBuildDir)LemonJetRecovery.exe" DestinationFolder="$(RecoveryOutDir)"
+          SkipUnchangedFiles="true" Retries="5" RetryDelayMilliseconds="200" />
+  </Target>
+</Project>

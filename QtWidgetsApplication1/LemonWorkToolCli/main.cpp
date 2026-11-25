@@ -5,12 +5,14 @@
 #include "cliresult.h"
 #include "masking.h"
 #include "sessionstore.h"
+#include "toolcommands.h"
 
-#include "Common/importpackageuploader.h"
+
 #include "Common/logger.h"
+#include "Common/LocalToolEndpoint.h"
 #include "lemoncofighelper.h"
 
-#include <QCoreApplication>
+#include <QApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
@@ -22,6 +24,7 @@
 #include <QStringList>
 
 #include <exception>
+#include <memory>
 
 namespace
 {
@@ -69,7 +72,6 @@ QJsonObject helpData()
         "help",
         "config show",
         "auth status",
-        "auth cookie",
         "auth sms-send",
         "auth login-sms",
         "auth login-password",
@@ -78,11 +80,12 @@ QJsonObject helpData()
         "accountsets plans",
         "accountsets list",
         "accountsets delete",
-        "accountsets backup",
-        "packages upload"
+        "accountsets backup"
     };
     for (const QString &name : names)
         commands.append(name);
+    const QJsonArray details = toolCommandHelp();
+    for (const auto &detail : details) commands.append(detail.toObject().value("name"));
 
     QJsonObject globals;
     globals["profile"] = "--profile default";
@@ -93,6 +96,7 @@ QJsonObject helpData()
 
     QJsonObject data;
     data["commands"] = commands;
+    data["commandDetails"] = details;
     data["globalOptions"] = globals;
     data["output"] = QStringLiteral("stdout 始终输出单个 JSON 对象");
     return data;
@@ -111,65 +115,6 @@ QJsonObject configData(const CliArguments &args, const SessionStore &store)
     data["sessionPath"] = QDir::toNativeSeparators(store.sessionPath());
     data["timeoutMs"] = timeoutMs(args);
     return data;
-}
-
-ImportPackageServiceType serviceTypeFromText(const QString &text)
-{
-    Q_UNUSED(text);
-    return ImportPackageServiceType::Professional;
-}
-
-CliResult runPackagesUpload(const CliArguments &args, const SessionStore &store)
-{
-    const QString command = "packages.upload";
-    const QString input = args.value("input");
-    if (input.isEmpty())
-        return CliResult::failure(command, "ARGUMENT_ERROR", QStringLiteral("缺少 --input"), ExitArgumentError);
-
-    const QFileInfo zipInfo(input);
-    if (!zipInfo.exists() || !zipInfo.isFile())
-        return CliResult::failure(command, "FILE_ERROR", QStringLiteral("输入文件不存在：") + QDir::toNativeSeparators(input), ExitFileError);
-    if (zipInfo.suffix().compare("zip", Qt::CaseInsensitive) != 0)
-        return CliResult::failure(command, "FILE_ERROR", QStringLiteral("packages upload 仅支持 ZIP 文件"), ExitFileError);
-
-    SessionInfo session;
-    CliResult sessionCheck = requireSession(command, store, &session);
-    if (!sessionCheck.ok)
-        return sessionCheck;
-
-    bool serviceIdOk = false;
-    const int explicitServiceId = args.value("service-id").toInt(&serviceIdOk);
-    const int serviceId = serviceIdOk && explicitServiceId > 0 ? explicitServiceId : session.serviceId;
-
-    ImportPackageUploadRequest request;
-    request.asId = args.value("as-id");
-    request.asName = args.value("as-name", zipInfo.completeBaseName());
-    request.zipFileName = args.value("zip-file-name", zipInfo.completeBaseName());
-    request.zipFilePath = zipInfo.absoluteFilePath();
-    request.accessToken = args.value("access-token", session.ningmengCookie);
-    request.ningMengCookie = args.value("ningmeng-cookie", session.ningmengCookie);
-    request.serviceId = serviceId;
-    request.rewriteProServiceId = true;
-    request.timeoutMs = timeoutMs(args);
-    request.serviceType = serviceTypeFromText(args.value("edition"));
-
-    const ImportPackageUploadResult uploadResult = ImportPackageUploader::upload(request);
-    if (!uploadResult.ok)
-    {
-        QJsonObject details;
-        details["httpStatus"] = uploadResult.httpStatus;
-        details["apiCode"] = uploadResult.responseCode;
-        details["fileSize"] = QString::number(uploadResult.fileSize).toDouble();
-        return CliResult::failure(command, "UPLOAD_FAILED", uploadResult.errorMessage, ExitServerError, details);
-    }
-
-    QJsonObject data;
-    data["input"] = QDir::toNativeSeparators(zipInfo.absoluteFilePath());
-    data["fileSize"] = QString::number(uploadResult.fileSize).toDouble();
-    data["httpStatus"] = uploadResult.httpStatus;
-    data["apiCode"] = uploadResult.responseCode;
-    data["importId"] = uploadResult.importId;
-    return CliResult::success(command, data);
 }
 
 CliResult runLoginPassword(const CliArguments &args, const SessionStore &store)
@@ -346,8 +291,20 @@ CliResult route(const CliArguments &args)
     const QString second = pos.value(1);
     SessionStore store(args);
 
-    if (first.isEmpty() || first == "help")
+    if (first.isEmpty() || (first == "help" && pos.size() == 1))
         return CliResult::success("help", helpData());
+    if (first == "help")
+    {
+        const QString name = pos.mid(1).join(' ');
+        const QJsonArray details = toolCommandHelp();
+        for (const auto &detail : details)
+            if (detail.toObject().value("name").toString() == name)
+                return CliResult::success("help", detail.toObject());
+        return CliResult::failure("help", "COMMAND_HELP_NOT_FOUND",
+                                  QStringLiteral("没有该命令的专项帮助，请使用 help 查看命令列表。"), ExitArgumentError);
+    }
+    if (first == "wecom" || first == "access" || first == "packages" || first == "bak")
+        return runToolCommand(args);
     if (first == "version")
         return CliResult::success("version", versionData());
     if (first == "config" && second == "show")
@@ -367,6 +324,13 @@ CliResult route(const CliArguments &args)
 
     if (first == "auth" && second == "cookie")
     {
+        const QString source = args.value("source", "session");
+        if (args.values("source").size() > 1 || (source != "session" && source != "desktop"))
+            return CliResult::failure("auth.cookie", "ARGUMENT_ERROR",
+                QStringLiteral("--source 只接受 session 或 desktop，并且只能指定一次。"), ExitArgumentError);
+        if (source == "desktop")
+            return runDesktopCookieCommand(args);
+
         SessionInfo session;
         CliResult sessionCheck = requireSession("auth.cookie", store, &session);
         if (!sessionCheck.ok)
@@ -424,8 +388,6 @@ CliResult route(const CliArguments &args)
     if (first == "accountsets" && second == "backup")
         return runAccountSetBackup(args, store);
 
-    if (first == "packages" && second == "upload")
-        return runPackagesUpload(args, store);
 
     return CliResult::failure(first.isEmpty() ? "unknown" : args.commandPath(),
                               "NOT_IMPLEMENTED",
@@ -436,7 +398,19 @@ CliResult route(const CliArguments &args)
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication app(argc, argv);
+    // Only the commands that can host WebView2 need a Windows widget application.
+    QStringList startupArguments;
+    for (int i = 0; i < argc; ++i) startupArguments.append(QString::fromLocal8Bit(argv[i]));
+    const QStringList command = CliArguments::parse(startupArguments).positionals();
+    const bool browserCommand = command == QStringList{"wecom", "read"} || command == QStringList{"wecom", "login"};
+    std::unique_ptr<QCoreApplication> app;
+    if (browserCommand) {
+        QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+        app = std::make_unique<QApplication>(argc, argv);
+        QApplication::setQuitOnLastWindowClosed(false);
+    } else {
+        app = std::make_unique<QCoreApplication>(argc, argv);
+    }
     QCoreApplication::setApplicationName("LemonWorkToolCli");
     QCoreApplication::setApplicationVersion("0.1.0");
 
@@ -444,7 +418,7 @@ int main(int argc, char *argv[])
     QElapsedTimer timer;
     timer.start();
 
-    const CliArguments args = CliArguments::parse(app.arguments());
+    const CliArguments args = CliArguments::parse(app->arguments());
     CliResult result;
     try
     {
@@ -463,6 +437,19 @@ int main(int argc, char *argv[])
 
     result.durationMs = timer.elapsed();
     result.logPath = QDir::toNativeSeparators(AppLogger::logFilePath());
+    if (args.positionals() == QStringList{"wecom", "read"} && args.has("legacy-json")) {
+        QJsonObject response{{"protocolVersion", LocalToolEndpoint::ProtocolVersion}, {"ok", result.ok}};
+        if (result.ok) {
+            response["data"] = result.data;
+        } else {
+            const QString loginCommand = result.errorDetails.value("loginCommand").toString();
+            const QString message = loginCommand.isEmpty() ? result.errorMessage : result.errorMessage + ' ' + loginCommand;
+            response["error"] = QJsonObject{{"code", result.errorCode.toLower()}, {"message", message}};
+        }
+        printJson(response, false);
+        AppLogger::shutdown();
+        return result.ok ? 0 : 2;
+    }
     printJson(result.toJson(), args.has("pretty"));
 
     const int exitCode = result.exitCode;

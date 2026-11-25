@@ -8,6 +8,14 @@
     <QtMoc Include="Common\WecomDocumentReader.h" />
     <QtMoc Include="Common\WecomLocalServer.h" />
     <ClCompile Include="Common\WecomLocalServer.cpp" />
+    <ClCompile Include="Common\LocalToolEndpoint.cpp" />
+    <ClInclude Include="Common\LocalToolEndpoint.h" />
+    <ClCompile Include="Common\LocalToolServer.cpp" />
+    <ClInclude Include="Common\LocalToolServer.h" />
+    <ClCompile Include="Common\BakLocalCommands.cpp" />
+    <ClInclude Include="Common\BakLocalCommands.h" />
+    <ClCompile Include="Common\PlatformBackupRestore.cpp" />
+    <ClInclude Include="Common\PlatformBackupRestore.h" />
     <ClInclude Include="Common\WecomDocumentData.h" />
     <ClInclude Include="Common\WecomDocumentCatalog.h" />
     <ClCompile Include="Common\WecomDocumentCatalog.cpp" />

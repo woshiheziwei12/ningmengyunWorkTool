@@ -1,4 +1,7 @@
 #include "Common/BakBackupRestorer.h"
+#include "Common/BakLocalCommands.h"
+#include "Common/LemonWorkToolPaths.h"
+#include "Common/LocalToolEndpoint.h"
 #include "Common/SqlBackupCompatibility.h"
 #include "Common/SqlServer211.h"
 #include "Common/RestorePreferences.h"
@@ -13,9 +16,12 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QProcess>
 #include <QScrollArea>
 #include <QSet>
 #include <QSignalBlocker>
@@ -86,6 +92,82 @@ QString tableText(const QTableWidget* table, int row, int column)
 void requireIntegration(bool condition, const QString& message)
 { if (!condition) throw message.isEmpty() ? QStringLiteral("SQL integration assertion failed") : message; }
 
+// Exercises the real CLI over the same per-user pipe lock as the workbench.
+void runBakCliIntegration(const QString &cli, const QString &directory, const QString &backup, const QString &target)
+{
+    const bool testPaths = QStandardPaths::isTestModeEnabled();
+    QStandardPaths::setTestModeEnabled(false);
+    const QString data = LemonWorkToolPaths::userDataDirectory();
+    QStandardPaths::setTestModeEnabled(testPaths);
+    BakLocalCommands commands;
+    LocalToolServer server([&commands](const QJsonObject &request, LocalToolServer::Reply reply) {
+        commands.dispatch(request, std::move(reply));
+    }, 90000, LocalToolServer::error("read_timeout", "Fixture request timed out"));
+    requireIntegration(!data.isEmpty() && server.start(LocalToolEndpoint::name("Bak"), QDir(data).filePath("DesktopBridge")),
+        "CLI fixture requires the BAK workbench pipe to be free: " + server.errorText());
+
+    const auto call = [&](const QStringList &arguments, int expectedExit = 0) {
+        QProcess process;
+        QEventLoop wait;
+        QTimer timer;
+        timer.setSingleShot(true);
+        QObject::connect(&timer, &QTimer::timeout, &wait, &QEventLoop::quit);
+        QObject::connect(&process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), &wait, &QEventLoop::quit);
+        process.start(cli, arguments);
+        requireIntegration(process.waitForStarted(5000), "Unable to start the released CLI");
+        if (process.state() != QProcess::NotRunning) {
+            timer.start(95000);
+            wait.exec();
+        }
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(5000);
+            requireIntegration(false, "CLI command timed out: " + arguments.join(' '));
+        }
+        const auto output = process.readAllStandardOutput();
+        requireIntegration(process.exitStatus() == QProcess::NormalExit && process.exitCode() == expectedExit,
+            "Unexpected CLI exit: " + QString::fromUtf8(output) + QString::fromUtf8(process.readAllStandardError()));
+        const auto reply = QJsonDocument::fromJson(output).object();
+        requireIntegration(reply.value("ok").isBool() && reply.value("ok").toBool() == (expectedExit == 0),
+            "CLI did not return the expected JSON response");
+        return reply;
+    };
+
+    const QByteArray before = fileHash(backup);
+    const auto inventory = call({"bak", "inspect", "--input", directory, "--staging-dir", directory, "--timeout-ms", "85000"})
+        .value("data").toObject();
+    const QString catalog = inventory.value("catalogId").toString();
+    int second = 0;
+    int unreadable = 0;
+    const auto rows = inventory.value("entries").toArray();
+    for (const auto &value : rows) {
+        const auto row = value.toObject();
+        if (!row.value("restorable").toBool()) ++unreadable;
+        if (QFileInfo(row.value("input").toString()).fileName() == QFileInfo(backup).fileName()
+            && row.value("position").toInt() == 2 && row.value("restorable").toBool())
+            second = row.value("set").toInt();
+    }
+    requireIntegration(!catalog.isEmpty() && rows.size() == 4 && unreadable == 1 && second > 0,
+        "CLI inventory did not preserve each position and the unreadable backup");
+    const QStringList restore{"bak", "restore", "--catalog-id", catalog, "--set", QString::number(second),
+        "--database", target, "--wait"};
+    const auto nonLocal = call(restore + QStringList{"--instance", "192.0.2.1"}, 1);
+    requireIntegration(nonLocal.value("error").toObject().value("code") == QJsonValue("INVALID_SQL_INSTANCE"),
+        "CLI accepted a non-local SQL target");
+    const auto done = call(restore + QStringList{"--instance", "."}).value("data").toObject();
+    const auto items = done.value("items").toArray();
+    requireIntegration(done.value("status") == QJsonValue("succeeded") && !done.value("jobId").toString().isEmpty()
+        && items.size() == 1 && items.at(0).toObject().value("databaseRestored").toBool(),
+        "The selected backup set did not restore");
+    const auto duplicate = call(restore + QStringList{"--instance", "."}, 5).value("error").toObject();
+    requireIntegration(duplicate.value("code") == QJsonValue("BAK_RESTORE_FAILED")
+        && duplicate.value("details").toObject().value("items").toArray().isEmpty(),
+        "The same destination was not rejected during preflight");
+    const auto status = call({"bak", "status", "--job-id", done.value("jobId").toString()}).value("data").toObject();
+    requireIntegration(status.value("status") == QJsonValue("succeeded") && fileHash(backup) == before,
+        "The previous job or original backup changed");
+}
+
 // Creates only synthetic fixtures on a local instance. Customer backups never enter this path.
 void runBakIntegration()
 {
@@ -94,7 +176,8 @@ void runBakIntegration()
     const QString sourceA="BakTest_"+token+"_SourceA", sourceB="BakTest_"+token+"_SourceB";
     const QString targetA="BakTest_"+token+"_RestoredA", targetB="BakTest_"+token+"_RestoredB";
     const QString targetSecond="BakTest_"+token+"_Snapshot2", targetRejected="BakTest_"+token+"_Rejected";
-    const QStringList names{sourceA,sourceB,targetA,targetB,targetSecond,targetRejected};
+    const QString targetCli="BakTest_"+token+"_Cli";
+    const QStringList names{sourceA,sourceB,targetA,targetB,targetSecond,targetRejected,targetCli};
     const auto lit=T3BackupRestorer::quoteLiteral;
     const auto ident=T3BackupRestorer::quoteIdentifier;
     T3SqlConnection options; options.server=".";
@@ -228,6 +311,13 @@ void runBakIntegration()
         result=restore(batch,{{indexA,targetA}});
         requireIntegration(!result.error.isEmpty() && marker(targetA)=="first","A repeat restore must preserve the existing database");
         qInfo()<<"PASS: BAK real multi-file restore, backup positions, preflight collisions, cancellation, identity checks and exact restored data";
+        const QString cli = qEnvironmentVariable("BAK_RESTORE_CLI");
+        if (!cli.isEmpty()) {
+            runBakCliIntegration(cli, backupDirectory.path(), backupA, targetCli);
+            capture();
+            requireIntegration(marker(targetCli) == "second", "CLI restored the wrong SQL backup position");
+            qInfo()<<"PASS: BAK CLI named pipe, inventory, local target guard, position 2, status, name collision and original hash";
+        }
     } catch(const QString& message) { failure=message; }
     catch(...) { failure="Unexpected exception in isolated BAK integration"; }
     cleanup();
@@ -240,6 +330,9 @@ void runBakIntegration()
 
 void runBakRestoreTests()
 {
+    checkBak(BakBackupRestorer::isSupportedHeader("TAPE"), "accepts native TAPE backups");
+    checkBak(BakBackupRestorer::isSupportedHeader("MSSQLBAK"), "accepts native MSSQLBAK backups");
+    checkBak(!BakBackupRestorer::isSupportedHeader("MSSQL"), "rejects an incomplete native signature");
     const QString originalSource = RestorePreferences::backupDirectory();
     const QString originalStaging = RestorePreferences::stagingDirectory();
     QTemporaryDir temporary;

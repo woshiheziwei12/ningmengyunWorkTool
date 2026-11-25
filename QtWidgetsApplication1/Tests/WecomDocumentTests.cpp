@@ -81,8 +81,8 @@ public:
     bool hasSavedSession() const override { return saved; }
     void saveSession(SessionReply reply) override { if (deferSave) saving = reply; else reply({}); }
     void resolveSave(const QString &error = {}) { auto callback = saving; saving = {}; callback(error); }
-    void bootstrap(const QString &id = documentId()) {
-        emit bootstrapReceived(QUrl("https://doc.weixin.qq.com/dop-api/opendoc?id=" + id), metadata());
+    void bootstrap(const QString &id = documentId(), const QJsonObject &body = metadata()) {
+        emit bootstrapReceived(QUrl("https://doc.weixin.qq.com/dop-api/opendoc?id=" + id), body);
     }
     void resolve(QJsonObject body, const QString &error = {}) { auto callback = pending.takeFirst(); callback(body, error); }
 };
@@ -118,8 +118,10 @@ void sessionTests() {
 
     FakeBrowser browser; browser.saved=true; browser.deferSave=true;
     WecomDocumentReader reader(&browser); int logins=0, completed=0;
+    QString saveResult;
     QObject::connect(&reader,&WecomDocumentReader::loginRequired,[&](){++logins;});
     QObject::connect(&reader,&WecomDocumentReader::finished,[&](const Snapshot &){++completed;});
+    QObject::connect(&reader,&WecomDocumentReader::signInCompleted,[&](const QString &error){saveResult=error;});
     reader.read(defaultUrl(),QDate(2028,1,1));
     require(reader.isBusy() && logins==0 && browser.last==defaultUrl(), "restart tries saved login before prompting QR");
     browser.bootstrap();
@@ -129,9 +131,31 @@ void sessionTests() {
     reader.signIn(defaultUrl()); browser.bootstrap();
     require(reader.isBusy() && logins==1, "manual sign-in also waits for save");
     auto stale=browser.saving; reader.cancel(); stale({});
-    require(!reader.isBusy() && completed==1, "cancel ignores delayed save callback");
+    require(!reader.isBusy() && completed==1 && saveResult.isEmpty(), "cancel ignores delayed save callback");
     reader.signIn(defaultUrl()); browser.bootstrap(); browser.resolveSave("simulated storage failure");
-    require(!reader.isBusy(), "save error does not lose valid in-memory login or lock UI");
+    require(!reader.isBusy() && saveResult == "simulated storage failure", "sign-in completion reports encrypted save failure");
+}
+void standaloneReaderTests() {
+    FakeBrowser browser;
+    WecomDocumentReader reader(&browser);
+    int prompts = 0, completed = 0;
+    QEventLoop waitForPrompt;
+    QObject::connect(&reader, &WecomDocumentReader::loginRequired, [&]() { ++prompts; waitForPrompt.quit(); });
+    QObject::connect(&reader, &WecomDocumentReader::finished, [&](const Snapshot &) { ++completed; });
+    reader.read(defaultUrl(), QDate(2028, 1, 1), WecomDocumentReader::LoginPrompt::AfterPageLoad);
+    require(prompts == 0 && reader.isBusy(), "standalone waits for authorization even without a backup file");
+    emit browser.navigationFinished(true);
+    browser.bootstrap();
+    require(prompts == 0 && completed == 1, "verified browser session reads without prompting");
+    FakeBrowser expired;
+    WecomDocumentReader expiredReader(&expired);
+    QObject::connect(&expiredReader, &WecomDocumentReader::loginRequired, [&]() { ++prompts; waitForPrompt.quit(); });
+    expiredReader.read(defaultUrl(), QDate(2028, 1, 1), WecomDocumentReader::LoginPrompt::AfterPageLoad);
+    emit expired.navigationFinished(true);
+    QTimer::singleShot(15000, &waitForPrompt, &QEventLoop::quit);
+    waitForPrompt.exec();
+    require(prompts == 1 && expiredReader.isBusy(), "unverified official page prompts for authorization");
+    expiredReader.cancel();
 }
 void runTests() {
     require(sheetDate("10-15", 2026) == QDate(2026,10,15), "year from document");
@@ -233,6 +257,82 @@ void runTests() {
     require(finished == 7 && !reader.isBusy(), "retry completes");
 }
 
+// Exercises the actual reader with an older tab pinned in the share URL.
+void latestSheetTests()
+{
+    const Document document{QStringLiteral("2026-站会总结表"),
+        QUrl("https://doc.weixin.qq.com/sheet/standup_test?tab=old"), SheetSelection::LatestDate};
+    const QJsonArray sheets{QJsonObject{{"id", "older"}, {"name", "11.20"}},
+        QJsonObject{{"id", "new"}, {"name", QStringLiteral("站会 11月22日")}},
+        QJsonObject{{"id", "old"}, {"name", "2026-11-09"}},
+        QJsonObject{{"id", "invalid"}, {"name", "11-31"}},
+        QJsonObject{{"id", "overview"}, {"name", QStringLiteral("汇总")}}};
+    const QJsonObject collab{{"padId", "standup"}, {"rev", 7}, {"header", QJsonArray{QJsonObject{{"d", sheets}}}}};
+    const QJsonObject body{{"clientVars", QJsonObject{{"title", QStringLiteral("站会总结表")}, {"collab_client_vars", collab}}}};
+    FakeBrowser browser;
+    WecomDocumentReader reader(&browser);
+    Snapshot result;
+    QObject::connect(&reader, &WecomDocumentReader::finished, [&](const Snapshot &snapshot) { result = snapshot; });
+    reader.read(document, QDate(2026, 12, 1));
+    browser.bootstrap("standup_test", body);
+    require(browser.pending.size() == 1 && QUrlQuery(browser.last).queryItemValue("subId") == "new",
+        "stand-up requests only the newest dated sheet regardless of the pinned tab, tab order or current date");
+    browser.resolve(response("new"));
+    require(!reader.isBusy() && browser.pending.isEmpty() && result.sheets.size() == 1
+        && result.sheets.first().loaded && result.sheets.first().date == QDate(2026, 11, 22),
+        "stand-up completes with one loaded page and resolves the year from the configured name");
+    require(result.toJson().value("sheetSelection") == QJsonValue("latest-date") && !result.toJson().contains("fromDate"),
+        "stand-up export identifies its filter and omits the unused date threshold");
+}
+
+void accountingProgressDateTests()
+{
+    const Document document{QStringLiteral("2026-记账系统项目进度表"),
+        QUrl("https://doc.weixin.qq.com/sheet/accounting_test"), SheetSelection::FromDateInName};
+    const QJsonArray sheets{
+        QJsonObject{{"id", "future"}, {"name", QStringLiteral("记账-11-26（上线）")}},
+        QJsonObject{{"id", "past"}, {"name", QStringLiteral("11-23 已发布")}},
+        QJsonObject{{"id", "today"}, {"name", QStringLiteral("11-24 需求")}},
+        QJsonObject{{"id", "dot"}, {"name", QStringLiteral("V1.2.3 汇总 11.27")}},
+        QJsonObject{{"id", "next-year"}, {"name", QStringLiteral("计划 2027年1月6日")}},
+        QJsonObject{{"id", "invalid"}, {"name", QStringLiteral("11月31日")}},
+        QJsonObject{{"id", "overview"}, {"name", QStringLiteral("说明与版本 1.2.3")}},
+        QJsonObject{{"id", "plain"}, {"name", "11-25"}}};
+    const QJsonObject collab{{"padId", "accounting"}, {"rev", 7}, {"header", QJsonArray{QJsonObject{{"d", sheets}}}}};
+    const QJsonObject body{{"clientVars", QJsonObject{{"title", document.name}, {"collab_client_vars", collab}}}};
+    const QDate start(2026, 11, 24);
+    Metadata parsed;
+    QString error;
+    require(parseMetadata(body, &parsed, &error), "legacy progress parser can read the same directory");
+    const auto legacy = selectSheets(parsed, start);
+    require(legacy.size() == 1 && legacy.first().id == "plain", "legacy progress ignores dates within descriptive tab names");
+
+    FakeBrowser browser;
+    WecomDocumentReader reader(&browser);
+    Snapshot result;
+    QObject::connect(&reader, &WecomDocumentReader::finished, [&](const Snapshot &snapshot) { result = snapshot; });
+    reader.read(document, start);
+    browser.bootstrap("accounting_test", body);
+    const QStringList expected{"today", "plain", "future", "dot", "next-year"};
+    for (const auto &id : expected) {
+        require(browser.pending.size() == 1 && QUrlQuery(browser.last).queryItemValue("subId") == id,
+            "accounting progress requests each matching tab in date order");
+        browser.resolve(response(id));
+    }
+    const auto json = result.toJson();
+    require(browser.pending.isEmpty() && result.sheets.size() == expected.size()
+        && json.value("fromDate") == QJsonValue("2026-11-24") && json.value("sheetSelection") == QJsonValue("from-date-in-name"),
+        "accounting progress keeps the inclusive cutoff and reports its strategy");
+
+    const QUrl accountingUrl("https://doc.weixin.qq.com/sheet/accounting_test");
+    QTemporaryDir directory;
+    WecomDocumentCatalog catalog(directory.filePath("WecomDocuments.json"));
+    require(catalog.save(document, false, &error)
+        && catalog.save({QStringLiteral("2026-记账系统"), accountingUrl}, true, &error)
+        && catalog.load().isEmpty() && catalog.entryForRead("accounting_test").selection == SheetSelection::FromDateInName,
+        "saving or renaming a catalog entry preserves the named-date strategy");
+}
+
 void catalogTests()
 {
     QTemporaryDir directory;
@@ -244,10 +344,20 @@ void catalogTests()
     const QUrl other("https://doc.weixin.qq.com/sheet/second_document?scode=test%2Bvalue");
     const QUrl updatedDefault(defaultUrl().toString() + "?scode=replacement");
     QString error;
-    require(first.save({QStringLiteral("第二张表"), other}, false, &error), "save a new binding");
+    require(first.save({QStringLiteral("第二张表"), other, SheetSelection::LatestDate}, false, &error), "save a new binding");
     require(second.save({QStringLiteral("项目进度表"), updatedDefault}, true, &error), "update a named binding");
     require(first.load().isEmpty() && first.entries().size() == 2, "another instance's binding is preserved");
     require(first.urlForId("second_document") == other && first.urlForId(documentId()) == updatedDefault, "full links survive reload and lookup");
+    const auto newLink = QUrl("https://doc.weixin.qq.com/sheet/new_sheet?tab=one");
+    const auto changedShare = QUrl("https://doc.weixin.qq.com/sheet/second_document?scode=new-copy");
+    const auto known = first.entryForUrl(changedShare);
+    require(known.selection == SheetSelection::LatestDate && known.url == changedShare
+        && first.entryForUrl(newLink).selection == SheetSelection::All && first.urlForId("new_sheet").isEmpty(),
+        "manual read resolves by ID and leaves new links temporary");
+    require(first.save({QStringLiteral("第二张表改名"), other}, true, &error) && first.load().isEmpty()
+        && first.entryForRead("second_document").selection == SheetSelection::LatestDate
+        && first.entryForRead({}).selection == SheetSelection::FromDate,
+        "renaming a binding preserves its selection and the legacy default");
     require(!first.save({QStringLiteral("重复表格"), other}, false, &error), "a duplicate ID needs confirmation");
     const QString userPath = directory.filePath("user/WecomDocuments.json");
     WecomDocumentCatalog userCatalog(userPath);
@@ -285,7 +395,7 @@ void catalogWidgetTests()
     auto *manual = widget.findChild<QPushButton*>("btnWecomManualAccess");
     require(selector && !selector->isEditable() && selector->count() == 1 && add && manual, "saved selector and separate visit/save actions");
     const QString name = QStringLiteral("演示表格");
-    const QString link = "https://doc.weixin.qq.com/sheet/demo_document";
+    const QString link = "https://doc.weixin.qq.com/sheet/demo_document?share_code=test-value";
     QTimer::singleShot(0, &widget, [&]() {
         auto *dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
         require(dialog, "add opens modal dialog");
@@ -296,6 +406,13 @@ void catalogWidgetTests()
     add->click();
     require(selector->count() == 2 && selector->currentText() == name && selector->currentData().toUrl() == QUrl(link),
         "saved table appears by name and is selected");
+    const auto docs = widget.assistantDocuments().value("data").toObject().value("documents").toArray();
+    require(docs.size() == 2 && docs.last().toObject() == QJsonObject{{"id", "demo_document"}, {"name", name}, {"sheetSelection", "all"}},
+        "CLI list uses the saved catalog and omits share parameters");
+    QJsonObject unknown;
+    widget.readForAssistant(QDate::currentDate(), "missing_document", {}, [&](const QJsonObject &reply) { unknown = reply; });
+    require(unknown.value("error").toObject().value("code") == "document_not_found" && selector->currentText() == name,
+        "an unknown CLI ID cannot change the GUI selection or start a read");
     WecomDocumentWidget reopened(nullptr, path);
     require(reopened.findChild<QComboBox*>("wecomDocumentSelector")->findText(name) >= 0, "reopened page loads saved binding");
     QTimer::singleShot(0, &widget, [&]() {
@@ -306,6 +423,43 @@ void catalogWidgetTests()
     });
     manual->click();
     require(selector->count() == 2, "cancelled visit leaves saved choices alone");
+
+    QFile brokenCatalog(path);
+    require(brokenCatalog.open(QIODevice::WriteOnly | QIODevice::Truncate), "replace test catalog with malformed JSON");
+    require(brokenCatalog.write("{ invalid") == 9, "write malformed catalog");
+    brokenCatalog.close();
+    require(widget.assistantDocuments().value("error").toObject().value("code") == "catalog_error",
+        "desktop lists report malformed catalogs like standalone CLI");
+    QJsonObject unavailable;
+    widget.readForAssistant(QDate::currentDate(), "demo_document", {}, [&](const QJsonObject &reply) { unavailable = reply; });
+    require(unavailable.value("error").toObject().value("code") == "catalog_error",
+        "desktop CLI reads do not use stale bindings after catalog corruption");
+}
+void allSheetTests()
+{
+    const QJsonArray sheets{QJsonObject{{"id", "overview"}, {"name", QStringLiteral("汇总")}},
+        QJsonObject{{"id", "future"}, {"name", "2027-01-01"}},
+        QJsonObject{{"id", "past"}, {"name", "2020-01-01"}},
+        QJsonObject{{"id", "notes"}, {"name", QStringLiteral("说明")}}};
+    const QJsonObject collab{{"padId", "manual"}, {"rev", 7}, {"header", QJsonArray{QJsonObject{{"d", sheets}}}}};
+    const auto url = QUrl("https://doc.weixin.qq.com/sheet/new_sheet?scode=mock-share&tab=notes");
+    const QJsonObject body{{"clientVars", QJsonObject{{"title", QStringLiteral("资料表")}, {"collab_client_vars", collab}}}};
+    FakeBrowser browser;
+    WecomDocumentReader reader(&browser);
+    Snapshot result;
+    QObject::connect(&reader, &WecomDocumentReader::finished, [&](const Snapshot &snapshot) { result = snapshot; });
+    reader.read(WecomDocumentCatalog().entryForUrl(url), QDate(2026, 11, 24));
+    browser.bootstrap("new_sheet", body);
+    const QStringList order{"overview", "future", "past", "notes"};
+    for (const auto &id : order) {
+        require(browser.pending.size() == 1 && QUrlQuery(browser.last).queryItemValue("subId") == id,
+            "all-sheet strategy requests every tab in workbook order");
+        browser.resolve(response(id));
+    }
+    const auto json = result.toJson();
+    require(json.value("complete").toBool() && json.value("sheetSelection") == QJsonValue("all")
+        && !json.contains("fromDate") && !QJsonDocument(json).toJson().contains("mock-share"),
+        "all-sheet export includes non-date tabs and omits date bounds and share codes");
 }
 void captureTests(const QString &directory) {
     QFile file(directory + "/metadata.json"); require(file.open(QIODevice::ReadOnly),"open capture metadata fixture");
@@ -385,12 +539,32 @@ int main(int argc,char **argv) {
         QTimer::singleShot(45000,&app,[&](){fprintf(stderr,"BROWSER: navigation timeout\n");app.exit(3);});
         browser.navigate(defaultUrl()); return app.exec();
     }
-    sessionTests(); runTests(); catalogTests(); catalogWidgetTests();
+    sessionTests(); standaloneReaderTests(); runTests(); latestSheetTests(); accountingProgressDateTests();
+    allSheetTests(); catalogTests(); catalogWidgetTests();
     runWecomLocalServerTests(arguments.contains("--client-script") ? arguments.value(arguments.indexOf("--client-script")+1) : QString());
     if (arguments.contains("--capture-dir")) captureTests(arguments.value(arguments.indexOf("--capture-dir")+1));
     WecomDocumentWidget widget; widget.resize(1000,650); widget.setAttribute(Qt::WA_DontShowOnScreen); widget.show(); app.processEvents();
     require(widget.findChild<QPushButton*>("btnWecomRead") && widget.findChild<QPushButton*>("btnWecomLogin"),"page actions exist");
     require(!widget.findChild<QPushButton*>("btnWecomExport")->isEnabled(),"export unavailable before read");
+    if (arguments.contains("--check-packaged-catalog")) {
+        const QString standup = QStringLiteral("2026-运营支持组站会总结表");
+        auto *selector = widget.findChild<QComboBox*>("wecomDocumentSelector");
+        require(selector && selector->findText(standup) >= 0, "packaged dropdown contains the stand-up table");
+        selector->setCurrentIndex(selector->findText(standup));
+        require(widget.findChild<QLabel*>("wecomReadStatus")->text().contains(QStringLiteral("最新的一页")),
+            "packaged stand-up item uses the newest page strategy");
+        const auto documents = widget.assistantDocuments().value("data").toObject().value("documents").toArray();
+        require(documents.contains(QJsonObject{{"id", "e3_ARwAqwY-AAkCNsNndJmHGR5K578aV"}, {"name", standup},
+            {"sheetSelection", "latest-date"}}), "packaged CLI metadata exposes the stand-up item without its share address");
+        const QString progress = QStringLiteral("2026-记账系统项目进度表");
+        const QString progressId = QStringLiteral("e3_AKcA1gZhAA0CNHYIuso0NR2O0Y8CZ");
+        require(selector->findText(progress) >= 0
+            && documents.contains(QJsonObject{{"id", progressId}, {"name", progress}, {"sheetSelection", "from-date-in-name"}}),
+            "accounting progress is available in the dropdown and CLI under its document ID");
+        WecomDocumentCatalog packaged;
+        require(packaged.load().isEmpty() && packaged.entryForRead(progressId).selection == SheetSelection::FromDateInName,
+            "accounting progress loads its date-in-name strategy");
+    }
     widget.findChild<QPushButton*>("btnWecomRead")->setFocus();
     if (arguments.contains("--screenshot")) {
         const auto path=arguments.value(arguments.indexOf("--screenshot")+1);

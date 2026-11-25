@@ -26,6 +26,10 @@ CliArguments CliArguments::parse(const QStringList &arguments)
         {
             value = arguments.at(++i);
         }
+        else
+        {
+            parsed.m_implicitOptions.insert(name);
+        }
 
         parsed.m_options[name].append(value);
     }

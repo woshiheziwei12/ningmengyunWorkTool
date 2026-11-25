@@ -1,16 +1,12 @@
 #pragma once
 
-#include <QUrl>
-#include <QVector>
+#include "WecomDocumentData.h"
 
 // Document names and links that travel with a copy of the application.
 class WecomDocumentCatalog
 {
 public:
-    struct Entry {
-        QString name;
-        QUrl url;
-    };
+    using Entry = WecomDocument::Document;
 
     // With no overrides, checks beside the application and then the user data directory.
     explicit WecomDocumentCatalog(const QString &path = {}, const QString &userPath = {});
@@ -19,6 +15,12 @@ public:
     const QVector<Entry> &entries() const { return m_entries; }
     // Looks up a saved link by its document ID, including its share parameters.
     QUrl urlForId(const QString &documentId) const;
+    // An empty ID requests the original progress sheet, whether bound or built in.
+    Entry entryForRead(const QString &documentId) const;
+    // Reuses the saved strategy for the URL's ID, or reads all sheets for a new URL.
+    Entry entryForUrl(const QUrl &url) const;
+    // Lists the IDs and names available to automation without their share links.
+    QJsonObject documentList() const;
     // Saves a binding atomically. Replacing an existing binding requires confirmation.
     bool save(const Entry &entry, bool replaceExisting, QString *error);
 

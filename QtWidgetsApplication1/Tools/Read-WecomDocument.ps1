@@ -8,6 +8,7 @@ $pipe = $null
 $reader = $null
 $writer = $null
 $exitCode = 0
+
 try {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $pipeName = 'LemonWorkTool.Wecom.v1.' + $identity.User.Value
@@ -57,8 +58,24 @@ try {
         'tool_disconnected' { 'The desktop tool disconnected before returning data.' }
         default { 'Unable to read the desktop tool response.' }
     }
+    $response = @{ protocolVersion=1; ok=$false; error=@{ code=$code; message=$message } }
+    $standalone = Join-Path $PSScriptRoot 'LemonWorkToolCli.exe'
     [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-    [Console]::WriteLine((@{ protocolVersion=1; ok=$false; error=@{ code=$code; message=$message } } | ConvertTo-Json -Compress))
+    if ($code -eq 'tool_not_running' -and !$Status -and (Test-Path -LiteralPath $standalone -PathType Leaf)) {
+        # Forward v1 JSON without converting date-like cells or numbers through PowerShell types.
+        $PSNativeCommandUseErrorActionPreference = $false
+        $cliArgs = @('wecom','read','--legacy-json','--timeout-ms',[string]($TimeoutSeconds * 1000))
+        if ($FromDate) { $cliArgs += @('--from-date', $FromDate) }
+        try {
+            $json = & $standalone @cliArgs
+            if ($LASTEXITCODE -in @(0, 2) -and $json -is [string] -and $json.StartsWith('{')) {
+                [Console]::WriteLine($json)
+                exit $LASTEXITCODE
+            }
+        } catch {}
+        $response.error = @{ code='invalid_response'; message='Unable to read the standalone CLI response.' }
+    }
+    [Console]::WriteLine(($response | ConvertTo-Json -Compress))
     $exitCode = 2
 } finally {
     # Close the pipe first to cancel a pending asynchronous read after timeout.

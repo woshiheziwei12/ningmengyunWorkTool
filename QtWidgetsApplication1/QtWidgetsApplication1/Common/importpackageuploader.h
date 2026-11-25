@@ -23,6 +23,8 @@ struct ImportPackageUploadRequest
     QString accessToken;
     QString ningMengCookie;
     QString importerApiHost;
+    QString environment;
+    int userId = 0;
     int serviceId = 0;
     bool rewriteProServiceId = true;
     int timeoutMs = 120000;
@@ -38,6 +40,8 @@ struct ImportPackageUploadResult
     int httpStatus = 0;
     int responseCode = -1;
     qint64 fileSize = 0;
+    bool historySaved = false;
+    bool acceptanceUnknown = false;
 };
 
 class ImportPackageUploader
