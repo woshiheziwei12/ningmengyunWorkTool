@@ -538,6 +538,14 @@ CliResult runAccessCommand(const CliArguments &args)
 QJsonArray toolCommandHelp()
 {
     return {
+        QJsonObject{{"name", "auth cookie"}, {"usage", "auth cookie [--source session|desktop] [--reveal] [--http-env Pro|Dev2] [--timeout-ms MS]"},
+            {"summary", QStringLiteral("读取 CLI 会话或后台工作台当前登录的柠檬云 Cookie。")},
+            {"options", QJsonObject{{"--source", QStringLiteral("session 读取 CLI 登录会话（默认），desktop 读取当前工作台。")},
+                {"--reveal", QStringLiteral("在本次 JSON 的 data.ningmengCookie 返回完整值。默认脱敏。")},
+                {"--http-env", QStringLiteral("desktop 模式可指定预期环境 Pro 或 Dev2，工作台环境不匹配时报错。")},
+                {"--timeout-ms", QStringLiteral("desktop 模式的等待上限，默认 5000 毫秒。")}}},
+            {"examples", QJsonArray{".\\LemonWorkToolCli.exe auth cookie",
+                ".\\LemonWorkToolCli.exe auth cookie --source desktop --http-env Dev2"}}},
         QJsonObject{{"name", "wecom status"}, {"usage", "wecom status [--timeout-ms MS]"},
             {"summary", QStringLiteral("检查企业微信使用桌面接口还是独立读取模式。")},
             {"options", QJsonObject{{"--timeout-ms", QStringLiteral("等待上限，默认 5000 毫秒。")}}},
@@ -621,6 +629,30 @@ QJsonArray toolCommandHelp()
             {"examples", QJsonArray{".\\LemonWorkToolCli.exe access convert --input 'D:\\input\\sample.mdb' --output-dir 'D:\\output'",
                 ".\\LemonWorkToolCli.exe access convert --input 'D:\\input\\batch' --output-dir 'D:\\output' --no-recursive"}}}
     };
+}
+
+CliResult runDesktopCookieCommand(const CliArguments &args)
+{
+    const QString command = "auth.cookie";
+    const QString error = validateOptions(args, {"reveal"}, {"source", "http-env", "timeout-ms"});
+    if (!error.isEmpty())
+        return CliResult::failure(command, "ARGUMENT_ERROR", error, ExitArgumentError);
+    if (args.positionals().size() != 2)
+        return CliResult::failure(command, "ARGUMENT_ERROR", QStringLiteral("auth cookie 不接受额外的位置参数。"), ExitArgumentError);
+
+    bool validTimeout = false;
+    const int timeout = args.value("timeout-ms", QString::number(QueryTimeoutMs)).toInt(&validTimeout);
+    if (!validTimeout || timeout < 1 || timeout > MaxTimeoutMs)
+        return CliResult::failure(command, "ARGUMENT_ERROR", QStringLiteral("--timeout-ms 必须是 1 至 600000 的整数。"), ExitArgumentError);
+
+    QJsonObject request{{"protocolVersion", LocalToolEndpoint::ProtocolVersion}, {"action", "read_cookie"}, {"reveal", args.has("reveal")}};
+    if (args.has("http-env")) {
+        const QString expected = args.value("http-env");
+        if (expected != "Pro" && expected != "Dev2")
+            return localFailure(command, "invalid_environment", QStringLiteral("预期环境只接受 Pro 或 Dev2。"));
+        request["environment"] = expected;
+    }
+    return callLocalTool(command, "Auth", request, timeout);
 }
 
 CliResult runToolCommand(const CliArguments &args)

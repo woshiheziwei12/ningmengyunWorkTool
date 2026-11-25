@@ -377,6 +377,15 @@ QtWidgetsApplication1::QtWidgetsApplication1(GlobalData *globalData, QWidget *pa
     if (!dataDirectory.isEmpty() && !m_bakLocalServer->start(bakEndpoint, QDir(dataDirectory).filePath("DesktopBridge"))) {
         AppLogger::warning(m_bakLocalServer->errorText());
     }
+    m_authLocalServer = new LocalToolServer([this](const QJsonObject &request, LocalToolServer::Reply reply) {
+        reply(readLocalAuthCookie(request));
+    }, 5000, LocalToolServer::error("read_timeout", QStringLiteral("读取工作台登录会话超时。")), this);
+    QString authEndpoint = LocalToolEndpoint::name("Auth");
+    if (!authEndpoint.isEmpty() && QStandardPaths::isTestModeEnabled())
+        authEndpoint += ".test." + QString::number(QCoreApplication::applicationPid());
+    if (!dataDirectory.isEmpty() && !m_authLocalServer->start(authEndpoint, QDir(dataDirectory).filePath("DesktopBridge"))) {
+        AppLogger::warning(m_authLocalServer->errorText());
+    }
 }
 
 QtWidgetsApplication1::~QtWidgetsApplication1()
@@ -384,6 +393,7 @@ QtWidgetsApplication1::~QtWidgetsApplication1()
     delete m_wecomLocalServer;
     delete m_packageLocalServer;
     delete m_bakLocalServer;
+    delete m_authLocalServer;
 }
 
 void QtWidgetsApplication1::resizeEvent(QResizeEvent *event)
@@ -1066,10 +1076,47 @@ void QtWidgetsApplication1::onOpenWebsite()
     }
 }
 
+QString QtWidgetsApplication1::activeNingMengCookie() const
+{
+    return m_pGlobalData && m_pGlobalData->m_bLogin ? m_pGlobalData->m_strNingMengCookie : QString();
+}
+
+QJsonObject QtWidgetsApplication1::readLocalAuthCookie(const QJsonObject &request) const
+{
+    if (request.value("protocolVersion") != QJsonValue(LocalToolEndpoint::ProtocolVersion))
+        return LocalToolServer::error("unsupported_version", QStringLiteral("本机接口版本不匹配。"));
+    if (request.value("action") != QJsonValue("read_cookie"))
+        return LocalToolServer::error("unsupported_action", QStringLiteral("本机登录接口支持读取当前 Cookie。"));
+    for (const auto &key : request.keys()) {
+        if (key != "protocolVersion" && key != "action" && key != "environment" && key != "reveal")
+            return LocalToolServer::error("invalid_request", QStringLiteral("请求包含不支持的字段。"));
+    }
+    if (!request.value("reveal").isBool())
+        return LocalToolServer::error("invalid_request", QStringLiteral("reveal 必须为布尔值。"));
+    if (!isEnabled())
+        return LocalToolServer::error("busy", QStringLiteral("工作助手正在切换环境，请稍后重试。"));
+
+    const QString active = lemoncofighelper::CurrentHttpEnvironment();
+    if (request.contains("environment")) {
+        const QString expected = request.value("environment").toString();
+        if (expected != "Pro" && expected != "Dev2")
+            return LocalToolServer::error("invalid_environment", QStringLiteral("预期环境只接受 Pro 或 Dev2。"));
+        if (expected != active)
+            return LocalToolServer::error("environment_mismatch", QStringLiteral("工作助手登录环境与命令指定的环境不一致。"),
+                {{"requestedEnvironment", expected}, {"activeEnvironment", active}});
+    }
+    const QString cookie = activeNingMengCookie();
+    if (cookie.trimmed().isEmpty())
+        return LocalToolServer::error("auth_required", QStringLiteral("请先在工作助手登录柠檬云。"));
+    const bool reveal = request.value("reveal").toBool();
+    return LocalToolServer::success({{"source", "desktop"}, {"environment", active},
+        {"revealed", reveal}, {"ningmengCookie", reveal ? cookie : QStringLiteral("***")}});
+}
+
 void QtWidgetsApplication1::onCopyNingMengCookie()
 {
     AppLogger::operation(QStringLiteral("复制 ningmengcookie"));
-    QString cookie = m_pGlobalData->m_strNingMengCookie;
+    const QString cookie = activeNingMengCookie();
     if (cookie.isEmpty())
     {
         QMessageBox::warning(this, QStringLiteral("\u63d0\u793a"),

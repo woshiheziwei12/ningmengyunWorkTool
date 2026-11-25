@@ -72,7 +72,6 @@ QJsonObject helpData()
         "help",
         "config show",
         "auth status",
-        "auth cookie",
         "auth sms-send",
         "auth login-sms",
         "auth login-password",
@@ -325,6 +324,13 @@ CliResult route(const CliArguments &args)
 
     if (first == "auth" && second == "cookie")
     {
+        const QString source = args.value("source", "session");
+        if (args.values("source").size() > 1 || (source != "session" && source != "desktop"))
+            return CliResult::failure("auth.cookie", "ARGUMENT_ERROR",
+                QStringLiteral("--source 只接受 session 或 desktop，并且只能指定一次。"), ExitArgumentError);
+        if (source == "desktop")
+            return runDesktopCookieCommand(args);
+
         SessionInfo session;
         CliResult sessionCheck = requireSession("auth.cookie", store, &session);
         if (!sessionCheck.ok)

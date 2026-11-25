@@ -9,6 +9,7 @@
 #include "backupaccountsetwidget.h"
 #include "subjectconflictdialog.h"
 #include "Common/globaldata.h"
+#include "Common/LocalToolEndpoint.h"
 #include "Common/LocalSqlInstances.h"
 #include "Common/repairpathsettings.h"
 #include "Common/WecomDocumentData.h"
@@ -33,6 +34,70 @@ static void require(bool condition, const char *message)
 static void settle()
 {
     for (int i = 0; i < 5; ++i) QApplication::processEvents();
+}
+
+// Exchanges a single JSON request with an isolated workbench test pipe.
+static QJsonObject queryWorkspacePipe(const QString &endpoint, const QJsonObject &request)
+{
+    QLocalSocket pipe;
+    QElapsedTimer timer;
+    timer.start();
+    pipe.connectToServer(endpoint);
+    while (pipe.state() != QLocalSocket::ConnectedState && timer.elapsed() < 3000) {
+        QApplication::processEvents();
+        QThread::msleep(1);
+    }
+    require(pipe.state() == QLocalSocket::ConnectedState, "workspace test pipe accepts connection");
+    pipe.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + '\n');
+    pipe.flush();
+    QByteArray response;
+    while (!response.endsWith('\n') && timer.elapsed() < 5000) {
+        QApplication::processEvents();
+        response += pipe.readAll();
+        QThread::msleep(1);
+    }
+    require(response.endsWith('\n'), "workspace test pipe replies with a complete frame");
+    return QJsonDocument::fromJson(response).object();
+}
+
+// Exercises the live workbench session with synthetic values only.
+static void verifyDesktopCookie(QtWidgetsApplication1 &window, GlobalData &data)
+{
+    const QString endpoint = LocalToolEndpoint::name("Auth") + ".test." + QString::number(QCoreApplication::applicationPid());
+    QJsonObject request{{"protocolVersion", LocalToolEndpoint::ProtocolVersion}, {"action", "read_cookie"}, {"reveal", true}};
+    const auto errorCode = [&]() {
+        return queryWorkspacePipe(endpoint, request).value("error").toObject().value("code").toString();
+    };
+    data.m_strNingMengCookie = "synthetic-desktop-cookie-one";
+    require(errorCode() == "auth_required", "logged-out workspace cannot expose a retained Cookie");
+
+    data.m_bLogin = true;
+    const auto environment = lemoncofighelper::CurrentHttpEnvironment();
+    request["environment"] = environment == "Pro" ? "Dev2" : "Pro";
+    require(errorCode() == "environment_mismatch", "mismatched environment cannot read a Cookie");
+    request.remove("environment");
+    request["reveal"] = "true";
+    require(errorCode() == "invalid_request", "invalid reveal value does not expose a Cookie");
+
+    request["reveal"] = false;
+    const auto masked = queryWorkspacePipe(endpoint, request).value("data").toObject();
+    require(masked.value("ningmengCookie") == QJsonValue("***") && masked.value("revealed") == QJsonValue(false)
+        && masked.value("environment") == QJsonValue(environment) && masked.value("source") == QJsonValue("desktop"),
+        "desktop Cookie reply defaults to masked and identifies its environment");
+
+    request["reveal"] = true;
+    const auto first = queryWorkspacePipe(endpoint, request).value("data").toObject();
+    require(first.value("ningmengCookie") == QJsonValue(data.m_strNingMengCookie)
+        && first.value("revealed") == QJsonValue(true), "explicit reveal returns the active synthetic Cookie");
+    data.m_strNingMengCookie = "synthetic-desktop-cookie-two";
+    const auto refreshed = queryWorkspacePipe(endpoint, request).value("data").toObject();
+    require(refreshed.value("ningmengCookie") == QJsonValue(data.m_strNingMengCookie), "next request reads the refreshed Cookie");
+
+    window.setEnabled(false);
+    require(errorCode() == "busy", "environment switch blocks Cookie reads");
+    window.setEnabled(true);
+    data.m_bLogin = false;
+    data.m_strNingMengCookie.clear();
 }
 
 int main(int argc, char **argv)
@@ -64,18 +129,11 @@ int main(int argc, char **argv)
     window.resize(1440, 960);
     settle();
     require(window.findChild<WecomLocalServer*>("wecomLocalServer"), "local document API starts with workspace");
-    {
-        QLocalSocket pipe;
-        pipe.connectToServer(WecomLocalServer::defaultServerName());
-        QElapsedTimer timer; timer.start();
-        while (pipe.state()!=QLocalSocket::ConnectedState && timer.elapsed()<3000) { QApplication::processEvents(); QThread::msleep(1); }
-        require(pipe.state()==QLocalSocket::ConnectedState, "workspace named pipe available before opening document page");
-        pipe.write("{\"protocolVersion\":1,\"action\":\"status\"}\n"); pipe.flush();
-        QByteArray response;
-        while (!response.endsWith('\n') && timer.elapsed()<5000) { QApplication::processEvents(); response+=pipe.readAll(); QThread::msleep(1); }
-        require(QJsonDocument::fromJson(response).object().value("ok").toBool(), "workspace serves structured status");
-        require(!window.findChild<QWidget*>("wecomDocumentPage"), "status does not instantiate document page or browser");
-    }
+    const auto status = queryWorkspacePipe(WecomLocalServer::defaultServerName(),
+        {{"protocolVersion", LocalToolEndpoint::ProtocolVersion}, {"action", "status"}});
+    require(status.value("ok").toBool(), "workspace serves structured status");
+    require(!window.findChild<QWidget*>("wecomDocumentPage"), "status does not instantiate document page or browser");
+    verifyDesktopCookie(window, data);
     auto capture = [&](const QString &name) {
         settle();
         require(window.grab().save(output + "/" + name + ".png"), "save screenshot");

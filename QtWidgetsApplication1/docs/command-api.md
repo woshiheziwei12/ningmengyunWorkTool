@@ -14,6 +14,22 @@
 
 <!-- BEGIN CLI REFERENCE -->
 
+### `auth cookie`
+
+读取 CLI 会话或后台工作台当前登录的柠檬云 Cookie。
+
+`auth cookie [--source session|desktop] [--reveal] [--http-env Pro|Dev2] [--timeout-ms MS]`
+
+- `--http-env` desktop 模式可指定预期环境 Pro 或 Dev2，工作台环境不匹配时报错。
+- `--reveal` 在本次 JSON 的 data.ningmengCookie 返回完整值。默认脱敏。
+- `--source` session 读取 CLI 登录会话（默认），desktop 读取当前工作台。
+- `--timeout-ms` desktop 模式的等待上限，默认 5000 毫秒。
+
+```powershell
+.\LemonWorkToolCli.exe auth cookie
+.\LemonWorkToolCli.exe auth cookie --source desktop --http-env Dev2
+```
+
 ### `wecom status`
 
 检查企业微信使用桌面接口还是独立读取模式。
@@ -185,6 +201,23 @@ $link | .\LemonWorkToolCli.exe wecom read --url-stdin
 ```
 
 <!-- END CLI REFERENCE -->
+
+## 柠檬云 Cookie
+
+`auth cookie` 默认读取 CLI 自己保存的会话。后台技能要使用工作台当前登录态时，显式传 `--source desktop`。同一个 Windows 用户需打开新版工具并登录到工作台，随后可以将工具缩到托盘。每次命令从当前会话取值，工作台续期后下一次调用会读到新值。
+
+```powershell
+# 在后台测试中先核对目标环境，避免误用正式会话。
+$reply = .\LemonWorkToolCli.exe auth cookie --source desktop --http-env Dev2 --reveal | ConvertFrom-Json
+if (-not $reply.ok) { throw $reply.error.message }
+$cookie = $reply.data.ningmengCookie
+```
+
+`--http-env Dev2` 校验测试环境，改为 `Pro` 校验正式环境。省略时返回值仍包含实际 `data.environment`，调用方可核对。默认结果脱敏，`--reveal` 只在本次 stdout 的 JSON 内返回完整值。自动化将命令输出直接解析并在本进程中使用，避免回显 JSON 或将完整值写入日志。
+
+工具未启动或停在登录界面时，工作台通道尚未就绪，CLI 返回 `TOOL_NOT_RUNNING`。通道已就绪而当前会话取不到 Cookie 时返回 `AUTH_REQUIRED`。环境切换中返回 `BUSY`，指定环境与实际不符返回 `ENVIRONMENT_MISMATCH`。
+
+同一 Windows 用户同时运行多个工作台时，CLI 连接最先取得 Auth 通道的实例。`--http-env` 校验该实例的环境。需要改用另一实例时，退出当前提供通道的工作台，再重新启动并登录目标工作台，由它注册通道。
 
 ## 企业微信调用流程
 
